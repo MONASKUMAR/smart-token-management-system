@@ -1,0 +1,253 @@
+/**
+ * Smart Token Management System - Client API Wrapper (Supabase Version)
+ * 
+ * Communicates directly with the Supabase Postgres database.
+ */
+
+const SmartTokenAPI = (function() {
+  const STORAGE_KEY_SESSION = "smart_token_session";
+  
+  // Set your Supabase details here:
+  const SUPABASE_URL = "https://swqgfhtyfudkwvyuulzz.supabase.co";
+  // IMPORTANT: You must replace this with your actual anon public key from the Supabase Dashboard
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN3cWdmaHR5ZnVka3d2eXV1bHp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2MDE4ODIsImV4cCI6MjA5NzE3Nzg4Mn0.qbjAR4I8NfCFusutfws4I4oZJsbCx4TGeaYtfSyA1fc"; 
+  
+  let supabase = null;
+
+  async function getClient() {
+    if (supabase) return supabase;
+    if (!window.supabase) {
+        // Dynamically load the Supabase library if not present in HTML
+        await new Promise((resolve, reject) => {
+            const script = document.createElement("script");
+            script.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
+            script.onload = resolve;
+            script.onerror = reject;
+            document.head.appendChild(script);
+        });
+    }
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    return supabase;
+  }
+
+  // --- API Endpoints ---
+
+  async function verifyLogin(username, password) {
+    const db = await getClient();
+    const { data, error } = await db.from('settings').select('value').eq('key', 'Admin Password').single();
+    if (error) return { success: false, error: "Database error" };
+    
+    if (username.toLowerCase() === "admin" && password === data.value) {
+      const token = "session_" + Math.random().toString(36).substr(2);
+      localStorage.setItem(STORAGE_KEY_SESSION, token);
+      return { success: true, message: "Authentication successful", token: token };
+    }
+    return { success: false, error: "Invalid username or password" };
+  }
+
+  function isLoggedIn() {
+    return localStorage.getItem(STORAGE_KEY_SESSION) !== null;
+  }
+
+  function logout() {
+    localStorage.removeItem(STORAGE_KEY_SESSION);
+  }
+
+  async function generateToken(details) {
+    const db = await getClient();
+    // Get settings parameters
+    const { data: set1 } = await db.from('settings').select('value').eq('key', 'Last Generated Token').single();
+    const { data: set2 } = await db.from('settings').select('value').eq('key', 'Starting Token Number').single();
+    const { data: set3 } = await db.from('settings').select('value').eq('key', 'Average Service Time').single();
+    
+    let lastToken = parseInt(set1?.value || "0");
+    let startingToken = parseInt(set2?.value || "100");
+    let avgServiceTime = parseInt(set3?.value || "10");
+    
+    let newTokenNum = lastToken + 1;
+    if (newTokenNum < startingToken) newTokenNum = startingToken;
+
+    // Insert new token
+    const { error: insErr } = await db.from('tokens').insert([{
+      token_number: newTokenNum,
+      customer_name: details.name || "Walk-In",
+      phone_number: details.phone || "-",
+      email: details.email || "-",
+      service_type: details.serviceType || "General",
+      source: details.source || "Manual",
+      status: "Waiting",
+      remarks: details.remarks || ""
+    }]);
+
+    if (insErr) return { success: false, error: insErr.message };
+
+    // Update settings last token
+    await db.from('settings').update({ value: newTokenNum.toString() }).eq('key', 'Last Generated Token');
+
+    // Calculate wait time
+    const { count } = await db.from('tokens')
+        .select('*', { count: 'exact', head: true })
+        .in('status', ['Waiting', 'Serving'])
+        .lt('token_number', newTokenNum);
+
+    return {
+      success: true,
+      tokenNumber: newTokenNum,
+      customerName: details.name || "Walk-In",
+      serviceType: details.serviceType || "General",
+      source: details.source || "Manual",
+      estimatedWaitingTimeMinutes: (count || 0) * avgServiceTime,
+      timeGenerated: new Date().toLocaleTimeString(),
+      dateGenerated: new Date().toLocaleDateString()
+    };
+  }
+
+  async function getQueue() {
+    const db = await getClient();
+    const { data, error } = await db.from('tokens')
+        .select('*')
+        .in('status', ['Waiting', 'Serving'])
+        .order('token_number', { ascending: true });
+    
+    if (error) return { success: false, queue: [] };
+    
+    return {
+      success: true,
+      queue: data.map(d => ({
+        tokenNumber: d.token_number,
+        customerName: d.customer_name,
+        phoneNumber: d.phone_number,
+        email: d.email,
+        serviceType: d.service_type,
+        source: d.source,
+        status: d.status,
+        date: new Date(d.created_at).toLocaleDateString(),
+        time: new Date(d.created_at).toLocaleTimeString(),
+        remarks: d.remarks
+      }))
+    };
+  }
+
+  async function nextToken() {
+    const db = await getClient();
+    // Complete current serving token first
+    await db.from('tokens').update({ status: 'Completed' }).eq('status', 'Serving');
+    
+    // Find next waiting
+    const { data: waitingData } = await db.from('tokens')
+        .select('*').eq('status', 'Waiting')
+        .order('token_number', { ascending: true })
+        .limit(1);
+        
+    if (waitingData && waitingData.length > 0) {
+        const next = waitingData[0];
+        await db.from('tokens').update({ status: 'Serving' }).eq('id', next.id);
+        await db.from('settings').update({ value: next.token_number.toString() }).eq('key', 'Current Serving Token');
+        return { success: true, message: "Serving next token", serving: {
+            tokenNumber: next.token_number,
+            customerName: next.customer_name,
+            serviceType: next.service_type,
+            source: next.source,
+            status: "Serving"
+        }};
+    } else {
+        await db.from('settings').update({ value: "0" }).eq('key', 'Current Serving Token');
+        return { success: true, message: "No waiting tokens in queue", serving: null };
+    }
+  }
+
+  async function completeToken(tokenNumber) {
+    const db = await getClient();
+    await db.from('tokens').update({ status: 'Completed' }).eq('token_number', tokenNumber);
+    const { data } = await db.from('settings').select('value').eq('key', 'Current Serving Token').single();
+    if (data && data.value === tokenNumber.toString()) {
+        await db.from('settings').update({ value: "0" }).eq('key', 'Current Serving Token');
+    }
+    return { success: true };
+  }
+
+  async function skipToken(tokenNumber) {
+    const db = await getClient();
+    await db.from('tokens').update({ status: 'Skipped' }).eq('token_number', tokenNumber);
+    const { data } = await db.from('settings').select('value').eq('key', 'Current Serving Token').single();
+    if (data && data.value === tokenNumber.toString()) {
+        await db.from('settings').update({ value: "0" }).eq('key', 'Current Serving Token');
+    }
+    return { success: true };
+  }
+
+  async function getCurrentToken() {
+    const db = await getClient();
+    const { data, error } = await db.from('tokens').select('*').eq('status', 'Serving').single();
+    if (error || !data) return { success: true, serving: null };
+    
+    return { success: true, serving: {
+        tokenNumber: data.token_number,
+        customerName: data.customer_name,
+        serviceType: data.service_type,
+        source: data.source,
+        status: data.status
+    }};
+  }
+
+  async function getReports() {
+    const db = await getClient();
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const { data, error } = await db.from('tokens').select('*').gte('created_at', today.toISOString());
+    
+    if (error) return { success: false };
+    
+    let stats = {
+        totalTokens: data.length,
+        manualTokens: data.filter(d => d.source === 'Manual').length,
+        onlineTokens: data.filter(d => d.source === 'Online').length,
+        completedTokens: data.filter(d => d.status === 'Completed').length,
+        skippedTokens: data.filter(d => d.status === 'Skipped').length,
+        averageWaitingTimeMinutes: 0
+    };
+    
+    return { success: true, summary: stats, distributions: { byService: {}, byHour: {} }, data: data };
+  }
+
+  async function getSettings() {
+    const db = await getClient();
+    const { data, error } = await db.from('settings').select('*');
+    if (error) return { success: false, settings: {} };
+    
+    let settings = {};
+    data.forEach(d => {
+        if (d.key !== 'Admin Password') settings[d.key] = d.value;
+    });
+    return { success: true, settings: settings };
+  }
+
+  async function updateSettings(settingsData) {
+    const db = await getClient();
+    for (const [key, value] of Object.entries(settingsData)) {
+       if (value !== undefined && value !== null && value !== '') {
+           let mapKey = key;
+           if (key === 'startingToken') mapKey = 'Starting Token Number';
+           else if (key === 'avgServiceTime') mapKey = 'Average Service Time';
+           else if (key === 'orgName') mapKey = 'Organization Name';
+           else if (key === 'enableBuzzer') mapKey = 'Enable Buzzer';
+           else if (key === 'thermalPrinterSettings') mapKey = 'Thermal Printer Settings';
+           else if (key === 'newPassword') mapKey = 'Admin Password';
+           
+           await db.from('settings').update({ value: value.toString() }).eq('key', mapKey);
+       }
+    }
+    return await getSettings();
+  }
+
+  // Backwards compatibility stubs for UI
+  function setBaseURL(url) { return true; }
+  function getBaseURL() { return SUPABASE_URL; }
+  function isConfigured() { return SUPABASE_ANON_KEY !== "YOUR_SUPABASE_ANON_KEY_HERE"; }
+
+  return {
+    setBaseURL, getBaseURL, isConfigured, isLoggedIn, logout, verifyLogin,
+    generateToken, getQueue, nextToken, completeToken, skipToken,
+    getCurrentToken, getReports, getSettings, updateSettings
+  };
+})();

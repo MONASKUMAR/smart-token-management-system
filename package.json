@@ -1,0 +1,26 @@
+{
+  "name": "smart-token-management-system",
+  "version": "1.0.0",
+  "description": "IoT hybrid queue token management system with Google Sheets backend database",
+  "main": "index.html",
+  "scripts": {
+    "dev": "npx -y http-server -p 3000",
+    "clasp:login": "clasp login",
+    "clasp:create": "clasp create --type sheets --title \"Smart Token Database Script\" --rootDir google_backend",
+    "clasp:clone": "clasp clone",
+    "clasp:push": "clasp push",
+    "clasp:deploy": "clasp deploy"
+  },
+  "keywords": [
+    "iot",
+    "esp32",
+    "queue-management",
+    "google-sheets",
+    "apps-script"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@google/clasp": "^2.4.2"
+  }
+}

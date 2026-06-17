@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Token Management System</title>
+  <!-- Bootstrap 5 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .portal-container {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at top right, #eef2f7 0%, #dbeafe 100%);
+      padding: 2rem 1rem;
+    }
+    .portal-header {
+      margin-bottom: 3rem;
+    }
+    .portal-card {
+      height: 100%;
+      border: none;
+      border-radius: var(--border-radius-lg);
+      overflow: hidden;
+      box-shadow: var(--box-shadow-md);
+      transition: var(--transition-smooth);
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(10px);
+    }
+    .portal-card:hover {
+      transform: translateY(-8px);
+      box-shadow: var(--box-shadow-lg);
+      border-bottom: 5px solid var(--primary-color);
+    }
+    .portal-icon-box {
+      height: 120px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 3.5rem;
+      background-color: rgba(26, 115, 232, 0.06);
+      color: var(--primary-color);
+      transition: var(--transition-smooth);
+    }
+    .portal-card:hover .portal-icon-box {
+      background-color: var(--primary-color);
+      color: #ffffff;
+    }
+    .quick-status-badge {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="portal-container">
+    <div class="container animate-fade-in" style="max-width: 1100px;">
+      
+      <!-- System Brand & Header -->
+      <div class="text-center portal-header">
+        <div class="d-inline-flex align-items-center gap-2 mb-2">
+          <i class="fa-solid fa-layer-group text-primary fs-1"></i>
+          <h1 class="fw-bold m-0" style="letter-spacing: -0.5px; color: #0f172a;">Smart Token Management System</h1>
+        </div>
+        <p class="text-muted fs-5">IoT-Enabled Hybrid Queue and Appointment System</p>
+      </div>
+
+      <!-- Navigation Portal Cards -->
+      <div class="row g-4 justify-content-center">
+        
+        <!-- Portal 1: Online Registration Kiosk -->
+        <div class="col-md-4 col-sm-6">
+          <div class="card portal-card position-relative">
+            <span class="badge bg-success quick-status-badge">Customer Portal</span>
+            <div class="portal-icon-box">
+              <i class="fa-solid fa-ticket"></i>
+            </div>
+            <div class="card-body p-4 text-center">
+              <h4 class="fw-bold mb-2">Self Registration</h4>
+              <p class="text-muted mb-4 text-start" style="font-size: 0.9rem; line-height: 1.5;">
+                For walk-in and online customers to register their details, choose services, and check-in to generate token queue numbers.
+              </p>
+              <a href="online-registration.html" class="btn btn-primary w-100 py-2">
+                Open Registration Form <i class="fa-solid fa-arrow-right ms-2"></i>
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Portal 2: Large Screen TV Display -->
+        <div class="col-md-4 col-sm-6">
+          <div class="card portal-card position-relative">
+            <span class="badge bg-info text-dark quick-status-badge">Live Display</span>
+            <div class="portal-icon-box">
+              <i class="fa-solid fa-desktop"></i>
+            </div>
+            <div class="card-body p-4 text-center">
+              <h4 class="fw-bold mb-2">Queue TV Monitor</h4>
+              <p class="text-muted mb-4 text-start" style="font-size: 0.9rem; line-height: 1.5;">
+                Fullscreen waiting lobby display board showing Currently Serving and Next Tokens. Includes audio buzzer and voice calling.
+              </p>
+              <a href="token-display.html" class="btn btn-outline-primary w-100 py-2">
+                Open Screen Display <i class="fa-solid fa-arrow-right ms-2"></i>
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Portal 3: Administration & Operator Console -->
+        <div class="col-md-4 col-sm-6">
+          <div class="card portal-card position-relative">
+            <span class="badge bg-danger quick-status-badge">Staff Secure</span>
+            <div class="portal-icon-box">
+              <i class="fa-solid fa-user-shield"></i>
+            </div>
+            <div class="card-body p-4 text-center">
+              <h4 class="fw-bold mb-2">Admin Console</h4>
+              <p class="text-muted mb-4 text-start" style="font-size: 0.9rem; line-height: 1.5;">
+                Secure dashboard for operators and admins to call next customers, generate manual tickets, configure queues, and view reports.
+              </p>
+              <a href="login.html" class="btn btn-outline-primary w-100 py-2">
+                Operator Login <i class="fa-solid fa-arrow-right ms-2"></i>
+              </a>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Quick Configuration Notification -->
+      <div id="config-alert" class="alert alert-warning border-0 mt-5 p-4 rounded-3 d-flex align-items-center gap-3 shadow-sm d-none">
+        <i class="fa-solid fa-circle-exclamation fs-3 text-warning"></i>
+        <div>
+          <h6 class="fw-bold mb-1">Configuration Needed</h6>
+          <span style="font-size: 0.85rem;" class="text-muted">
+            The Google Apps Script REST API URL is not set. Staff must log in and define this under settings for the system to synchronize data.
+          </span>
+        </div>
+      </div>
+
+      <!-- Footer Info -->
+      <div class="text-center mt-5 text-muted" style="font-size: 0.85rem;">
+        <p>&copy; 2026 Smart Token Management System. Powered by Google Sheets & ESP32 IoT.</p>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="js/api.js"></script>
+  <script>
+    // Show configuration alert if API URL is not set
+    document.addEventListener("DOMContentLoaded", () => {
+      if (!SmartTokenAPI.isConfigured()) {
+        document.getElementById("config-alert").classList.remove("d-none");
+      }
+    });
+  </script>
+</body>
+</html>

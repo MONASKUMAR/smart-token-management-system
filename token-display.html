@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lobby Display Screen - Smart Token</title>
+  <!-- Bootstrap 5 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    body {
+      background-color: #0b0f19;
+      overflow: hidden; /* Lock viewport on TV monitor display */
+    }
+    .display-container {
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 2rem;
+    }
+    .display-header-panel {
+      background-color: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: var(--border-radius-md);
+      padding: 1.25rem 2rem;
+    }
+    .now-serving-card {
+      background: radial-gradient(circle at center, #111827 0%, #030712 100%);
+      border: 3px solid var(--primary-color);
+      box-shadow: 0 0 50px rgba(26, 115, 232, 0.35);
+      border-radius: var(--border-radius-lg);
+      padding: 3rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      flex-grow: 1;
+      margin: 1.5rem 0;
+    }
+    .now-serving-badge {
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: var(--secondary-color);
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      margin-bottom: 1rem;
+    }
+    .serving-number-big {
+      font-size: 14rem;
+      font-weight: 900;
+      color: #ffffff;
+      line-height: 1;
+      text-shadow: 0 0 30px rgba(255, 255, 255, 0.2);
+    }
+    .serving-cust-info {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #cbd5e1;
+      margin-top: 1.5rem;
+    }
+    .serving-service-badge {
+      font-size: 1.25rem;
+      background-color: rgba(26, 115, 232, 0.2);
+      color: var(--primary-color);
+      border: 1px solid var(--primary-color);
+      padding: 0.5rem 1.5rem;
+      border-radius: 50px;
+      margin-top: 1rem;
+    }
+    .next-queue-panel {
+      background-color: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: var(--border-radius-md);
+      padding: 1.5rem;
+    }
+    .next-token-card {
+      background-color: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: var(--border-radius-md);
+      padding: 1.25rem;
+      text-align: center;
+      transition: var(--transition-smooth);
+    }
+    .next-token-card:hover {
+      border-color: var(--secondary-color);
+      background-color: rgba(0, 188, 212, 0.05);
+      transform: scale(1.03);
+    }
+    .next-token-number {
+      font-size: 3.5rem;
+      font-weight: 800;
+      color: var(--secondary-color);
+      line-height: 1.1;
+    }
+    .next-token-label {
+      font-size: 0.9rem;
+      color: #94a3b8;
+      text-transform: uppercase;
+      font-weight: 600;
+      margin-top: 0.35rem;
+    }
+    /* Buzzer Notification Ring */
+    .buzzer-alert {
+      animation: flashBorder 0.8s ease-in-out infinite alternate;
+    }
+    @keyframes flashBorder {
+      0% { border-color: var(--primary-color); box-shadow: 0 0 20px rgba(26, 115, 232, 0.2); }
+      100% { border-color: var(--secondary-color); box-shadow: 0 0 70px rgba(0, 188, 212, 0.7); }
+    }
+    /* Pulse Dot */
+    .dot-pulse {
+      width: 10px;
+      height: 10px;
+      background-color: var(--secondary-color);
+      border-radius: 50%;
+      display: inline-block;
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0% { transform: scale(0.9); opacity: 0.5; }
+      50% { transform: scale(1.3); opacity: 1; }
+      100% { transform: scale(0.9); opacity: 0.5; }
+    }
+  </style>
+</head>
+<body class="display-page-body">
+
+  <div class="display-container">
+    
+    <!-- Header Row -->
+    <header class="display-header-panel d-flex justify-content-between align-items-center">
+      <div class="d-flex align-items-center gap-3">
+        <i class="fa-solid fa-layer-group text-primary fs-2"></i>
+        <h2 class="fw-bold m-0 text-white" id="display-org-name">Smart Token System</h2>
+      </div>
+      <div class="d-flex align-items-center gap-3">
+        <div class="text-white-50" style="font-size: 1.1rem;" id="clock-display">00:00:00 PM</div>
+        <div class="d-flex align-items-center gap-1">
+          <div class="dot-pulse"></div>
+          <span style="font-size: 0.85rem;" class="text-white-50 fw-semibold text-uppercase">Live Monitoring</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content Panel: NOW SERVING -->
+    <main class="now-serving-card animate-fade-in" id="serving-card-glow">
+      <span class="now-serving-badge"><i class="fa-solid fa-volume-high me-2"></i>Now Serving</span>
+      <div class="serving-number-big" id="serving-token-number">--</div>
+      <div class="serving-cust-info" id="serving-customer-name">Please wait for tokens...</div>
+      <div class="serving-service-badge" id="serving-service-type">General Service</div>
+    </main>
+
+    <!-- Bottom Panel: UP NEXT (Next 3 waiting slots) -->
+    <footer class="next-queue-panel">
+      <h5 class="text-white-50 text-uppercase fw-semibold mb-3" style="font-size: 0.95rem; letter-spacing: 1.5px;">
+        <i class="fa-solid fa-angles-right text-info me-2"></i>Next in Queue
+      </h5>
+      <div class="row g-3" id="next-tokens-container">
+        <div class="col-md-4">
+          <div class="next-token-card">
+            <div class="next-token-number">--</div>
+            <div class="next-token-label">Waiting</div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="next-token-card">
+            <div class="next-token-number">--</div>
+            <div class="next-token-label">Waiting</div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="next-token-card">
+            <div class="next-token-number">--</div>
+            <div class="next-token-label">Waiting</div>
+          </div>
+        </div>
+      </div>
+    </footer>
+
+  </div>
+
+  <!-- Audio elements (buzzer effect) -->
+  <audio id="buzzer-sound" preload="auto">
+    <source src="https://assets.mixkit.co/active_storage/sfx/2869/2869-84.wav" type="audio/wav">
+  </audio>
+
+  <!-- Bootstrap & Javascript Utilities -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/display.js"></script>
+</body>
+</html>

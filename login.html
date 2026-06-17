@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Staff Login - Smart Token Management</title>
+  <!-- Bootstrap 5 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .login-container {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #eef2f7 0%, #cbd5e1 100%);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Spinner Overlay -->
+  <div id="spinner-loader" class="spinner-overlay">
+    <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status">
+      <span class="visually-hidden">Loading...</span>
+    </div>
+  </div>
+
+  <div class="login-container">
+    <div class="card login-card shadow-lg animate-fade-in border-0 rounded-4">
+      <div class="card-body p-5">
+        
+        <!-- Header -->
+        <div class="text-center mb-4">
+          <a href="index.html" class="text-decoration-none">
+            <div class="d-inline-flex align-items-center gap-2 mb-2">
+              <i class="fa-solid fa-layer-group text-primary fs-2"></i>
+              <span class="fw-bold fs-4 text-dark">Smart Token</span>
+            </div>
+          </a>
+          <h5 class="fw-bold text-dark mt-2">Staff Portal Login</h5>
+          <p class="text-muted" style="font-size: 0.9rem;">Sign in to access admin functions</p>
+        </div>
+
+        <!-- Notification Banner -->
+        <div id="alert-box" class="alert alert-danger d-none border-0 p-3 rounded-3" role="alert" style="font-size: 0.85rem;">
+          <i class="fa-solid fa-circle-exclamation me-2"></i>
+          <span id="alert-message">Invalid credentials. Please try again.</span>
+        </div>
+
+        <!-- Login Form -->
+        <form id="login-form">
+          <!-- Username -->
+          <div class="mb-3">
+            <label for="username" class="form-label fw-semibold" style="font-size: 0.85rem;">Username</label>
+            <div class="input-group">
+              <span class="input-group-text bg-light border-end-0"><i class="fa-regular fa-user text-muted"></i></span>
+              <input type="text" class="form-control bg-light border-start-0 ps-0" id="username" placeholder="e.g. admin" required value="admin">
+            </div>
+          </div>
+
+          <!-- Password -->
+          <div class="mb-3">
+            <label for="password" class="form-label fw-semibold" style="font-size: 0.85rem;">Password</label>
+            <div class="input-group">
+              <span class="input-group-text bg-light border-end-0"><i class="fa-solid fa-lock text-muted"></i></span>
+              <input type="password" class="form-control bg-light border-start-0 border-end-0 ps-0" id="password" placeholder="Enter password" required>
+              <button class="btn btn-light border border-start-0 text-muted" type="button" id="toggle-password">
+                <i class="fa-regular fa-eye-slash" id="toggle-icon"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Options -->
+          <div class="d-flex justify-content-between align-items-center mb-4" style="font-size: 0.85rem;">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="remember-me">
+              <label class="form-check-label text-muted" for="remember-me">Remember Session</label>
+            </div>
+            <a href="#" id="forgot-password-link" class="text-primary text-decoration-none">Forgot Password?</a>
+          </div>
+
+          <!-- Submit -->
+          <button type="submit" class="btn btn-primary w-100 py-2.5">
+            Sign In <i class="fa-solid fa-right-to-bracket ms-2"></i>
+          </button>
+        </form>
+
+        <!-- Configuration Hint -->
+        <div id="unconfigured-warning" class="mt-4 text-center d-none">
+          <hr class="my-3">
+          <small class="text-warning fw-semibold d-block">
+            <i class="fa-solid fa-triangle-exclamation me-1"></i>
+            REST API URL is not set. 
+          </small>
+          <small class="text-muted d-block mt-1" style="font-size: 0.75rem;">
+            Use password <code class="bg-light px-1 text-dark border rounded">admin123</code> to login offline and set up the API in settings.
+          </small>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap & Javascript Utilities -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="js/api.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const loginForm = document.getElementById("login-form");
+      const usernameInput = document.getElementById("username");
+      const passwordInput = document.getElementById("password");
+      const togglePasswordBtn = document.getElementById("toggle-password");
+      const toggleIcon = document.getElementById("toggle-icon");
+      const alertBox = document.getElementById("alert-box");
+      const alertMessage = document.getElementById("alert-message");
+      const spinnerLoader = document.getElementById("spinner-loader");
+      const unconfiguredWarning = document.getElementById("unconfigured-warning");
+      const forgotPasswordLink = document.getElementById("forgot-password-link");
+
+      // Check if already logged in and API is configured
+      if (SmartTokenAPI.isLoggedIn() && SmartTokenAPI.isConfigured()) {
+        window.location.href = "dashboard.html";
+        return;
+      }
+
+      // Show temporary config hints if API is not set
+      if (!SmartTokenAPI.isConfigured()) {
+        unconfiguredWarning.classList.remove("d-none");
+      }
+
+      // Show/hide password
+      togglePasswordBtn.addEventListener("click", () => {
+        const type = passwordInput.getAttribute("type") === "password" ? "text" : "password";
+        passwordInput.setAttribute("type", type);
+        toggleIcon.classList.toggle("fa-eye");
+        toggleIcon.classList.toggle("fa-eye-slash");
+      });
+
+      // Handle Forgot Password link
+      forgotPasswordLink.addEventListener("click", (e) => {
+        e.preventDefault();
+        alertBox.classList.remove("d-none", "alert-danger");
+        alertBox.classList.add("alert-info");
+        alertMessage.textContent = "The default password is 'admin123'. It can be changed inside System Settings.";
+      });
+
+      // Authenticate
+      loginForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        
+        const username = usernameInput.value;
+        const password = passwordInput.value;
+
+        alertBox.classList.add("d-none");
+        spinnerLoader.classList.add("show");
+
+        if (!SmartTokenAPI.isConfigured()) {
+          // Offline bypass if the user has not configured the Apps Script URL yet,
+          // allowing them to enter the system settings to paste the Web App URL.
+          setTimeout(() => {
+            spinnerLoader.classList.remove("show");
+            if (username.toLowerCase() === "admin" && password === "admin123") {
+              SmartTokenAPI.setBaseURL("https://script.google.com/macros/s/offline-setup-placeholder/exec"); // temporary mock url
+              localStorage.setItem("smart_token_session", "temp_session");
+              window.location.href = "settings.html";
+            } else {
+              alertBox.classList.remove("d-none");
+              alertBox.classList.add("alert-danger");
+              alertMessage.textContent = "Offline Setup Mode: Enter username 'admin' and password 'admin123' to configure Settings.";
+            }
+          }, 800);
+          return;
+        }
+
+        // Online Apps Script verify login call
+        const response = await SmartTokenAPI.verifyLogin(username, password);
+        spinnerLoader.classList.remove("show");
+
+        if (response.success) {
+          window.location.href = "dashboard.html";
+        } else {
+          alertBox.classList.remove("d-none");
+          alertBox.classList.add("alert-danger");
+          alertMessage.textContent = response.error || "Authentication failed. Incorrect username or password.";
+        }
+      });
+    });
+  </script>
+</body>
+</html>

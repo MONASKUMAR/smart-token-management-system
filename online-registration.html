@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Customer Token Registration</title>
+  <!-- Bootstrap 5 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .registration-container {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at bottom left, #eef2f7 0%, #dbeafe 100%);
+      padding: 2rem 1rem;
+    }
+    .register-card {
+      max-width: 650px;
+      width: 100%;
+      border: none;
+      border-radius: var(--border-radius-lg);
+    }
+    .ticket-success-card {
+      border: 2px solid #2e7d32;
+      background: linear-gradient(145deg, #ffffff 0%, #f1fcf2 100%);
+      border-radius: var(--border-radius-lg);
+      box-shadow: 0 10px 30px rgba(46, 125, 50, 0.15);
+    }
+    .ticket-success-number {
+      font-size: 5.5rem;
+      font-weight: 900;
+      color: #2e7d32;
+      text-shadow: 0 4px 10px rgba(46, 125, 50, 0.15);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Spinner Overlay -->
+  <div id="spinner-loader" class="spinner-overlay">
+    <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status">
+      <span class="visually-hidden">Loading...</span>
+    </div>
+  </div>
+
+  <div class="registration-container">
+    
+    <!-- Registration Form Card -->
+    <div class="card register-card shadow-lg animate-fade-in" id="form-card">
+      <div class="card-body p-5">
+        
+        <!-- Header -->
+        <div class="text-center mb-4">
+          <a href="index.html" class="text-decoration-none">
+            <div class="d-inline-flex align-items-center gap-2 mb-2">
+              <i class="fa-solid fa-layer-group text-primary fs-2"></i>
+              <span class="fw-bold fs-4 text-dark" id="reg-org-title">Smart Token System</span>
+            </div>
+          </a>
+          <h4 class="fw-bold text-dark mt-2">Generate Queue Token</h4>
+          <p class="text-muted">Fill out your details to join the virtual queue waitlist</p>
+        </div>
+
+        <!-- Warning offline indicator -->
+        <div id="offline-warning" class="alert alert-warning border-0 p-3 mb-4 rounded-3 d-flex align-items-center gap-2 d-none" style="font-size: 0.85rem;">
+          <i class="fa-solid fa-triangle-exclamation text-warning"></i>
+          <span>Database API is offline. Tokens will be generated in demo simulation mode.</span>
+        </div>
+
+        <!-- Registration Form -->
+        <form id="registration-form" novalidate>
+          
+          <div class="row g-3">
+            <!-- Full Name -->
+            <div class="col-md-6 col-12">
+              <label for="cust-name" class="form-label fw-semibold" style="font-size: 0.85rem;">Full Name <span class="text-danger">*</span></label>
+              <input type="text" class="form-control py-2" id="cust-name" placeholder="John Doe" required>
+              <div class="invalid-feedback">Please enter your name.</div>
+            </div>
+
+            <!-- Mobile Number -->
+            <div class="col-md-6 col-12">
+              <label for="cust-phone" class="form-label fw-semibold" style="font-size: 0.85rem;">Mobile Number <span class="text-danger">*</span></label>
+              <input type="tel" class="form-control py-2" id="cust-phone" placeholder="e.g. 9876543210" required pattern="[0-9]{10,15}">
+              <div class="invalid-feedback">Please enter a valid mobile number (10-15 digits).</div>
+            </div>
+
+            <!-- Email Address -->
+            <div class="col-12">
+              <label for="cust-email" class="form-label fw-semibold" style="font-size: 0.85rem;">Email Address <span class="text-muted">(Optional)</span></label>
+              <input type="email" class="form-control py-2" id="cust-email" placeholder="john.doe@example.com">
+              <div class="invalid-feedback">Please enter a valid email format.</div>
+            </div>
+
+            <!-- Service Type Dropdown -->
+            <div class="col-md-6 col-12">
+              <label for="cust-service" class="form-label fw-semibold" style="font-size: 0.85rem;">Required Service <span class="text-danger">*</span></label>
+              <select class="form-select py-2" id="cust-service" required>
+                <option value="" disabled selected>Select service category...</option>
+                <option value="General Service">General Service</option>
+                <option value="Consultation">Consultation (Doctor/Consultant)</option>
+                <option value="Enquiry">Enquiry / Helpdesk</option>
+                <option value="Premium Service">Premium Service</option>
+              </select>
+              <div class="invalid-feedback">Please choose a service.</div>
+            </div>
+
+            <!-- Preferred Date -->
+            <div class="col-md-6 col-12">
+              <label for="cust-date" class="form-label fw-semibold" style="font-size: 0.85rem;">Preferred Date</label>
+              <input type="date" class="form-control py-2" id="cust-date">
+            </div>
+
+            <!-- Preferred Time Slot -->
+            <div class="col-md-6 col-12">
+              <label for="cust-timeslot" class="form-label fw-semibold" style="font-size: 0.85rem;">Time Slot</label>
+              <select class="form-select py-2" id="cust-timeslot">
+                <option value="Any Time">Any Time (As soon as possible)</option>
+                <option value="Morning Slot">Morning Slot (09:00 AM - 12:00 PM)</option>
+                <option value="Afternoon Slot">Afternoon Slot (12:00 PM - 03:00 PM)</option>
+                <option value="Evening Slot">Evening Slot (03:00 PM - 06:00 PM)</option>
+              </select>
+            </div>
+
+            <!-- Remarks -->
+            <div class="col-12">
+              <label for="cust-remarks" class="form-label fw-semibold" style="font-size: 0.85rem;">Additional Remarks <span class="text-muted">(Optional)</span></label>
+              <textarea class="form-control" id="cust-remarks" rows="2" placeholder="Describe query or complaints..."></textarea>
+            </div>
+          </div>
+
+          <div class="row g-2 mt-4">
+            <div class="col-8">
+              <button type="submit" class="btn btn-primary w-100 py-2.5">
+                Generate Token <i class="fa-solid fa-ticket ms-2"></i>
+              </button>
+            </div>
+            <div class="col-4">
+              <button type="button" class="btn btn-light border w-100 py-2.5" id="btn-clear-form">
+                Clear
+              </button>
+            </div>
+          </div>
+
+        </form>
+
+      </div>
+    </div>
+
+    <!-- Ticket Slip Output Success Card (Hidden initially) -->
+    <div class="card register-card ticket-success-card shadow-lg p-4 d-none animate-fade-in" id="ticket-card">
+      <div class="card-body p-4 text-center">
+        
+        <div class="mb-3">
+          <i class="fa-solid fa-circle-check text-success fs-1"></i>
+        </div>
+        
+        <h3 class="fw-bold text-dark mb-1">Registration Complete</h3>
+        <p class="text-muted mb-4" id="ticket-org-name">Smart Token Management System</p>
+        
+        <hr class="my-3 border-secondary border-opacity-25 border-dashed">
+        
+        <div style="font-size: 0.95rem;" class="text-muted text-uppercase fw-semibold">Your Token Number is</div>
+        <div class="ticket-success-number" id="ticket-number">---</div>
+        
+        <div class="badge bg-success-subtle text-success py-2 px-3 border border-success-subtle mb-4">
+          <i class="fa-solid fa-hourglass-half me-1"></i> Estimated Waiting Time: <span id="ticket-wait-time">--</span> minutes
+        </div>
+
+        <div class="row g-3 justify-content-center text-start mb-4" style="max-width: 450px; margin: auto; font-size: 0.9rem;">
+          <div class="col-6 text-muted">Customer Name:</div>
+          <div class="col-6 fw-semibold text-end text-dark" id="ticket-cust-name">-</div>
+          
+          <div class="col-6 text-muted">Service Type:</div>
+          <div class="col-6 fw-semibold text-end text-dark" id="ticket-service-type">-</div>
+          
+          <div class="col-6 text-muted">Booking Reference:</div>
+          <div class="col-6 fw-semibold text-end text-dark" id="ticket-source">Online Ticket</div>
+          
+          <div class="col-6 text-muted">Date & Time:</div>
+          <div class="col-6 fw-semibold text-end text-dark" id="ticket-date-time">-</div>
+        </div>
+
+        <hr class="my-4 border-secondary border-opacity-25 border-dashed">
+
+        <div class="row g-2 justify-content-center">
+          <div class="col-sm-5 col-12">
+            <button class="btn btn-success w-100 py-2.5" id="btn-print-receipt">
+              <i class="fa-solid fa-print me-1"></i> Print Ticket
+            </button>
+          </div>
+          <div class="col-sm-5 col-12">
+            <button class="btn btn-outline-secondary w-100 py-2.5" id="btn-new-ticket">
+              Book Another
+            </button>
+          </div>
+        </div>
+        
+        <div class="text-muted mt-3" style="font-size: 0.75rem;">
+          Please capture a screenshot or print this ticket for validation at the counter.
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Print Frame (hidden) -->
+  <iframe id="print-frame" style="display:none;"></iframe>
+
+  <!-- Bootstrap & Javascript Utilities -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/registration.js"></script>
+</body>
+</html>
