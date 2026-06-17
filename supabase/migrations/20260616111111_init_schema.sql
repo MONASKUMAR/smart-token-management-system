@@ -28,3 +28,17 @@ INSERT INTO settings (key, value) VALUES
     ('Enable Buzzer', 'true'),
     ('Thermal Printer Settings', 'Default'),
     ('Admin Password', 'admin123');
+
+-- Enable RLS on tables
+ALTER TABLE tokens ENABLE ROW LEVEL SECURITY;
+ALTER TABLE settings ENABLE ROW LEVEL SECURITY;
+
+-- Create policies for tokens table
+CREATE POLICY "Allow anon read access on tokens" ON tokens FOR SELECT TO anon USING (true);
+CREATE POLICY "Allow anon insert access on tokens" ON tokens FOR INSERT TO anon WITH CHECK (true);
+CREATE POLICY "Allow anon update access on tokens" ON tokens FOR UPDATE TO anon USING (true) WITH CHECK (true);
+CREATE POLICY "Allow anon delete access on tokens" ON tokens FOR DELETE TO anon USING (true);
+
+-- Create policies for settings table
+CREATE POLICY "Allow anon read access on settings" ON settings FOR SELECT TO anon USING (true);
+CREATE POLICY "Allow anon update access on settings" ON settings FOR UPDATE TO anon USING (true) WITH CHECK (true);
