@@ -35,7 +35,7 @@ const SmartTokenAPI = (function() {
   async function verifyLogin(username, password) {
     const db = await getClient();
     const { data, error } = await db.from('settings').select('value').eq('key', 'Admin Password').single();
-    if (error) return { success: false, error: "Database error" };
+    if (error) return { success: false, error: "DB Error: " + error.message };
     
     if (username.toLowerCase() === "admin" && password === data.value) {
       const token = "session_" + Math.random().toString(36).substr(2);
