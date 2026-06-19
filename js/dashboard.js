@@ -528,12 +528,31 @@ document.addEventListener("DOMContentLoaded", () => {
     const dateStr = ticket.dateGenerated || new Date().toISOString().split('T')[0];
     const timeStr = ticket.timeGenerated || new Date().toTimeString().split(' ')[0];
     
-    // Inject values into printer template
+    // Generate temporary QR code in our hidden container
+    const qrTemp = document.getElementById("dashboard-qr-temp");
+    qrTemp.innerHTML = "";
+    const qrUrl = `${window.location.protocol}//${window.location.host}/token-status.html?token=${ticket.tokenNumber}`;
+    
+    if (window.QRCode) {
+      new QRCode(qrTemp, {
+        text: qrUrl,
+        width: 128,
+        height: 128,
+        colorDark: "#000000",
+        colorLight: "#ffffff",
+        correctLevel: QRCode.CorrectLevel.H
+      });
+    } else {
+      qrTemp.innerHTML = "QR Code Error";
+    }
+
+    // Inject values and QR code into printer template
     document.getElementById("print-org-name").textContent = orgName;
     document.getElementById("print-token-number").textContent = ticket.tokenNumber;
     document.getElementById("print-service-type").textContent = ticket.serviceType;
     document.getElementById("print-customer-name").textContent = "Name: " + (ticket.customerName || "Walk-In");
     document.getElementById("print-date-time").textContent = `Date: ${dateStr} | Time: ${timeStr}`;
+    document.getElementById("print-qrcode").innerHTML = qrTemp.innerHTML;
 
     const printContent = document.getElementById("ticket-print-template").innerHTML;
     

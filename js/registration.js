@@ -163,6 +163,24 @@ document.addEventListener("DOMContentLoaded", () => {
     ticketSource.textContent = `${ticket.source} Booking`;
     ticketDateTime.textContent = `${dateStr} @ ${timeStr}`;
 
+    // Generate QR Code dynamically pointing to token-status.html
+    const qrContainer = document.getElementById("qrcode");
+    qrContainer.innerHTML = "";
+    const qrUrl = `${window.location.protocol}//${window.location.host}/token-status.html?token=${ticket.tokenNumber}`;
+    
+    if (window.QRCode) {
+      new QRCode(qrContainer, {
+        text: qrUrl,
+        width: 128,
+        height: 128,
+        colorDark: "#1e293b",
+        colorLight: "#ffffff",
+        correctLevel: QRCode.CorrectLevel.H
+      });
+    } else {
+      qrContainer.innerHTML = "<p class='text-danger' style='font-size: 0.8rem;'>QR Code failed to load</p>";
+    }
+
     formCard.classList.add("d-none");
     ticketCard.classList.remove("d-none");
   }
@@ -194,6 +212,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const dateStr = ticket.dateGenerated || new Date().toISOString().split('T')[0];
     const timeStr = ticket.timeGenerated || new Date().toTimeString().split(' ')[0];
 
+    // Grab the QR code HTML image to embed in receipt
+    const qrImageHTML = document.getElementById("qrcode").innerHTML;
+
     const printContent = `
       <div style="font-family:'Courier New', monospace; text-align:center; padding: 20px; width: 280px; margin: auto; border: 1px dashed #000;">
         <h2 style="margin: 0 0 5px 0;">${orgName}</h2>
@@ -206,6 +227,13 @@ document.addEventListener("DOMContentLoaded", () => {
         <hr style="border-top: 1px dashed #000; margin: 10px 0;">
         <p style="font-size: 0.8rem; margin: 5px 0;">Name: ${ticket.customerName}</p>
         <p style="font-size: 0.8rem; margin: 5px 0;">Date: ${dateStr} | Time: ${timeStr}</p>
+        <hr style="border-top: 1px dashed #000; margin: 10px 0;">
+        <div style="margin: 15px auto; text-align: center;">
+          <div style="display: inline-block; padding: 5px; background: #fff; border: 1px solid #ddd;">
+            ${qrImageHTML}
+          </div>
+          <p style="font-size: 0.7rem; margin: 5px 0 0 0; color: #555;">Scan to track live status</p>
+        </div>
         <p style="font-size: 0.75rem; margin: 15px 0 0 0; font-style: italic;">Thank you for registering!</p>
       </div>
     `;

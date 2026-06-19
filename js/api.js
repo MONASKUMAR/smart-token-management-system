@@ -225,7 +225,7 @@ const SmartTokenAPI = (function() {
   async function updateSettings(settingsData) {
     const db = await getClient();
     for (const [key, value] of Object.entries(settingsData)) {
-       if (value !== undefined && value !== null && value !== '') {
+       if (value !== undefined && value !== null) {
            let mapKey = key;
            if (key === 'startingToken') mapKey = 'Starting Token Number';
            else if (key === 'avgServiceTime') mapKey = 'Average Service Time';
@@ -234,10 +234,74 @@ const SmartTokenAPI = (function() {
            else if (key === 'thermalPrinterSettings') mapKey = 'Thermal Printer Settings';
            else if (key === 'newPassword') mapKey = 'Admin Password';
            
-           await db.from('settings').update({ value: value.toString() }).eq('key', mapKey);
+           await db.from('settings').upsert({ key: mapKey, value: value.toString() });
        }
     }
     return await getSettings();
+  }
+
+  async function getTokenDetails(tokenNumber) {
+    if (!isConfigured() || SUPABASE_URL.includes("offline-setup-placeholder")) {
+      return {
+        success: true,
+        token: {
+          tokenNumber: tokenNumber,
+          customerName: "Offline Mock Customer",
+          phoneNumber: "9876543210",
+          email: "mock@example.com",
+          serviceType: "Consultation",
+          source: "Online",
+          status: "Waiting",
+          date: new Date().toLocaleDateString(),
+          time: new Date().toLocaleTimeString(),
+          remarks: "Offline simulation mode"
+        }
+      };
+    }
+    
+    const db = await getClient();
+    const cleanTokenNum = parseInt(tokenNumber.toString().replace(/\D/g, ''), 10);
+    
+    const { data, error } = await db.from('tokens')
+        .select('*')
+        .eq('token_number', isNaN(cleanTokenNum) ? tokenNumber : cleanTokenNum)
+        .order('created_at', { ascending: false })
+        .limit(1);
+        
+    if (error) return { success: false, error: error.message };
+    if (!data || data.length === 0) return { success: false, error: "Token not found" };
+    
+    const token = data[0];
+    
+    // Calculate waiting time estimate if status is Waiting
+    let estimatedWait = 0;
+    if (token.status === 'Waiting') {
+      const { count } = await db.from('tokens')
+          .select('*', { count: 'exact', head: true })
+          .in('status', ['Waiting', 'Serving'])
+          .lt('token_number', token.token_number);
+          
+      const { data: set3 } = await db.from('settings').select('value').eq('key', 'Average Service Time').single();
+      const avgServiceTime = parseInt(set3?.value || "10");
+      estimatedWait = (count || 0) * avgServiceTime;
+    }
+    
+    return {
+      success: true,
+      token: {
+        tokenNumber: token.token_number,
+        customerName: token.customer_name,
+        phoneNumber: token.phone_number,
+        email: token.email,
+        serviceType: token.service_type,
+        source: token.source,
+        status: token.status,
+        date: new Date(token.created_at).toLocaleDateString(),
+        time: new Date(token.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
+        remarks: token.remarks,
+        estimatedWaitingTimeMinutes: estimatedWait
+      }
+    };
   }
 
   // Backwards compatibility stubs for UI
@@ -248,6 +312,6 @@ const SmartTokenAPI = (function() {
   return {
     setBaseURL, getBaseURL, isConfigured, isLoggedIn, logout, verifyLogin,
     generateToken, getQueue, nextToken, completeToken, skipToken,
-    getCurrentToken, getReports, getSettings, updateSettings
+    getCurrentToken, getReports, getSettings, updateSettings, getTokenDetails
   };
 })();

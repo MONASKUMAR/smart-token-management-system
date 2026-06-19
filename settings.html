@@ -168,6 +168,31 @@
                 <label for="settings-printer-header" class="form-label fw-semibold" style="font-size: 0.85rem;">Receipt Header Text</label>
                 <input type="text" class="form-control" id="settings-printer-header" value="Welcome to our Clinic">
               </div>
+
+              <!-- Connection Interface Selector -->
+              <div class="col-md-6 col-12">
+                <label for="settings-printer-connection" class="form-label fw-semibold" style="font-size: 0.85rem;">Connection Interface</label>
+                <select class="form-select" id="settings-printer-connection">
+                  <option value="wire">Wired Serial (RX/TX)</option>
+                  <option value="bluetooth">Bluetooth (Wireless SPP)</option>
+                </select>
+              </div>
+
+              <!-- Bluetooth Search / Connection Row -->
+              <div class="col-md-6 col-12" id="settings-bluetooth-section" style="display: none;">
+                <label class="form-label fw-semibold d-block" style="font-size: 0.85rem;">
+                  Bluetooth Printer Search
+                  <span class="badge bg-secondary ms-2" id="printer-scan-status">Idle</span>
+                </label>
+                <div class="input-group">
+                  <select class="form-select" id="settings-printer-device">
+                    <option value="">-- Select Discovered Device --</option>
+                  </select>
+                  <button type="button" class="btn btn-outline-primary" id="btn-scan-bluetooth">
+                    <i class="fa-solid fa-magnifying-glass me-1"></i> Scan Devices
+                  </button>
+                </div>
+              </div>
             </div>
 
             <button type="submit" class="btn btn-primary mt-4" id="btn-save-printer-settings">
@@ -247,6 +272,11 @@
       const printerForm = document.getElementById("settings-printer-form");
       const paperSelect = document.getElementById("settings-printer-paper");
       const printerHeaderInput = document.getElementById("settings-printer-header");
+      const connectionSelect = document.getElementById("settings-printer-connection");
+      const bluetoothSection = document.getElementById("settings-bluetooth-section");
+      const deviceSelect = document.getElementById("settings-printer-device");
+      const btnScanBluetooth = document.getElementById("btn-scan-bluetooth");
+      const printerScanStatus = document.getElementById("printer-scan-status");
 
       const passForm = document.getElementById("settings-pass-form");
       const newPassInput = document.getElementById("settings-new-pass");
@@ -317,12 +347,104 @@
               const p = JSON.parse(s["Thermal Printer Settings"]);
               paperSelect.value = p.paper || "58mm";
               printerHeaderInput.value = p.header || "Welcome";
+              connectionSelect.value = p.connection || "wire";
+              
+              if (p.connection === "bluetooth") {
+                bluetoothSection.style.display = "block";
+              } else {
+                bluetoothSection.style.display = "none";
+              }
+              
+              deviceSelect.dataset.selected = p.device || "";
             } catch (err) {
               printerHeaderInput.value = s["Thermal Printer Settings"];
             }
           }
+          
+          if (s["Scanned Bluetooth Printers"]) {
+            try {
+              const list = JSON.parse(s["Scanned Bluetooth Printers"]);
+              populateBluetoothPrinters(list);
+            } catch (e) {
+              console.error("Failed to parse Scanned Bluetooth Printers: ", e);
+            }
+          }
         }
       }
+
+      function populateBluetoothPrinters(list) {
+        const selectedVal = deviceSelect.dataset.selected || "";
+        deviceSelect.innerHTML = '<option value="">-- Select Discovered Device --</option>';
+        if (list && Array.isArray(list)) {
+          list.forEach(dev => {
+            const opt = document.createElement("option");
+            opt.value = dev.address;
+            opt.textContent = `${dev.name || 'Unknown'} (${dev.address})`;
+            if (dev.address === selectedVal) {
+              opt.selected = true;
+            }
+            deviceSelect.appendChild(opt);
+          });
+        }
+      }
+
+      connectionSelect.addEventListener("change", () => {
+        if (connectionSelect.value === "bluetooth") {
+          bluetoothSection.style.display = "block";
+        } else {
+          bluetoothSection.style.display = "none";
+        }
+      });
+
+      btnScanBluetooth.addEventListener("click", async () => {
+        if (!SmartTokenAPI.isConfigured()) {
+          showToast("API URL is not set.", false);
+          return;
+        }
+
+        btnScanBluetooth.disabled = true;
+        printerScanStatus.textContent = "Scanning...";
+        printerScanStatus.className = "badge bg-warning text-dark ms-2";
+        
+        await SmartTokenAPI.updateSettings({
+          "Scan Request": "true"
+        });
+
+        let attempts = 0;
+        const interval = setInterval(async () => {
+          attempts++;
+          const response = await SmartTokenAPI.getSettings();
+          if (response.success && response.settings) {
+            const s = response.settings;
+            if (s["Scan Request"] !== "true") {
+              clearInterval(interval);
+              btnScanBluetooth.disabled = false;
+              printerScanStatus.textContent = "Scan Complete!";
+              printerScanStatus.className = "badge bg-success ms-2";
+              
+              if (s["Scanned Bluetooth Printers"]) {
+                try {
+                  const list = JSON.parse(s["Scanned Bluetooth Printers"]);
+                  populateBluetoothPrinters(list);
+                  showToast("Bluetooth printer scan completed successfully!", true);
+                } catch (e) {
+                  showToast("Failed to load scanned printers.", false);
+                }
+              } else {
+                showToast("No Bluetooth printers discovered.", false);
+              }
+            }
+          }
+
+          if (attempts >= 15) {
+            clearInterval(interval);
+            btnScanBluetooth.disabled = false;
+            printerScanStatus.textContent = "Scan Timeout";
+            printerScanStatus.className = "badge bg-danger ms-2";
+            showToast("Bluetooth scan request timed out. Verify your ESP32 is powered on.", false);
+          }
+        }, 2000);
+      });
 
       /**
        * Trigger Banner notification toast
@@ -430,7 +552,9 @@
 
         const printerData = {
           paper: paperSelect.value,
-          header: printerHeaderInput.value.trim()
+          header: printerHeaderInput.value.trim(),
+          connection: connectionSelect.value,
+          device: deviceSelect.value
         };
 
         spinnerLoader.classList.add("show");

@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Track Token Status - Smart Token Management</title>
+  <!-- Bootstrap 5 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .status-container {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at top right, #f8fafc 0%, #e0f2fe 100%);
+      padding: 2rem 1rem;
+    }
+    .status-card {
+      max-width: 550px;
+      width: 100%;
+      border: none;
+      border-radius: var(--border-radius-lg);
+      box-shadow: var(--box-shadow-lg);
+      overflow: hidden;
+    }
+    .status-header {
+      background: linear-gradient(135deg, var(--primary-color) 0%, #1557b0 100%);
+      color: #ffffff;
+      padding: 2rem 1.5rem;
+      text-align: center;
+      position: relative;
+    }
+    .status-badge-large {
+      font-size: 1rem;
+      font-weight: 700;
+      padding: 0.6rem 1.2rem;
+      border-radius: 50px;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .token-number-large {
+      font-size: 6.5rem;
+      font-weight: 900;
+      line-height: 1;
+      margin: 1rem 0;
+      text-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+    .pulse-glow {
+      box-shadow: 0 0 0 0 rgba(26, 115, 232, 0.4);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0% {
+        box-shadow: 0 0 0 0 rgba(26, 115, 232, 0.4);
+      }
+      70% {
+        box-shadow: 0 0 0 15px rgba(26, 115, 232, 0);
+      }
+      100% {
+        box-shadow: 0 0 0 0 rgba(26, 115, 232, 0);
+      }
+    }
+    .refresh-btn {
+      transition: var(--transition-smooth);
+    }
+    .refresh-btn:hover {
+      transform: rotate(180deg);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Spinner Overlay -->
+  <div id="spinner-loader" class="spinner-overlay">
+    <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status">
+      <span class="visually-hidden">Loading...</span>
+    </div>
+  </div>
+
+  <div class="status-container">
+    <div class="card status-card animate-fade-in" id="main-status-card">
+      
+      <!-- Dynamic Status Header -->
+      <div class="status-header">
+        <div class="d-flex align-items-center justify-content-center gap-2 mb-2">
+          <i class="fa-solid fa-layer-group fs-4"></i>
+          <span class="fw-bold fs-5" id="status-org-name">Smart Token System</span>
+        </div>
+        <div class="text-white-50 text-uppercase fw-semibold" style="font-size: 0.8rem; letter-spacing: 1px;">Token Number</div>
+        <div class="token-number-large" id="status-token-number">--</div>
+        
+        <div id="status-badge-container">
+          <span class="status-badge-large bg-white text-primary"><i class="fa-solid fa-spinner fa-spin"></i> Checking...</span>
+        </div>
+      </div>
+
+      <!-- Card Body containing details -->
+      <div class="card-body p-4">
+        
+        <!-- Live Alert for Active Tokens -->
+        <div id="live-alert-box" class="alert alert-info border-0 p-3 mb-4 rounded-3 d-flex align-items-center gap-2 d-none">
+          <i class="fa-solid fa-circle-exclamation text-info animate-pulse fs-5"></i>
+          <span style="font-size: 0.85rem;" id="live-alert-text">Checking queue status...</span>
+        </div>
+
+        <h5 class="fw-bold text-dark mb-3"><i class="fa-solid fa-circle-info text-primary me-2"></i>Token Details</h5>
+        
+        <!-- Detail Grid List -->
+        <div class="row g-3" style="font-size: 0.95rem;">
+          <div class="col-6 text-muted">Customer Name:</div>
+          <div class="col-6 fw-semibold text-end text-dark" id="detail-name">-</div>
+          
+          <div class="col-6 text-muted">Requested Service:</div>
+          <div class="col-6 fw-semibold text-end text-dark" id="detail-service">-</div>
+          
+          <div class="col-6 text-muted">Booking Reference:</div>
+          <div class="col-6 fw-semibold text-end text-dark" id="detail-source">-</div>
+          
+          <div class="col-6 text-muted">Registered On:</div>
+          <div class="col-6 fw-semibold text-end text-dark" id="detail-datetime">-</div>
+          
+          <div class="col-6 text-muted">Additional Info:</div>
+          <div class="col-6 fw-semibold text-end text-dark text-truncate" id="detail-remarks" title="-">-</div>
+        </div>
+
+        <hr class="my-4 border-secondary border-opacity-25 border-dashed">
+
+        <!-- Action Row -->
+        <div class="d-flex flex-column flex-sm-row justify-content-between align-items-center gap-3">
+          <div class="d-flex align-items-center gap-2 text-muted" style="font-size: 0.85rem;">
+            <i class="fa-solid fa-clock-rotate-left"></i>
+            <span>Auto-refreshes in <strong id="refresh-counter">10</strong>s</span>
+          </div>
+          <button class="btn btn-outline-primary d-flex align-items-center gap-2 py-2 px-3 btn-sm" id="btn-manual-refresh">
+            <i class="fa-solid fa-arrows-rotate refresh-btn"></i> Refresh Now
+          </button>
+        </div>
+
+      </div>
+      
+      <!-- Footer details -->
+      <div class="card-footer bg-light border-0 text-center py-3 text-muted" style="font-size: 0.75rem;">
+        If you miss your call, please contact the support desk.
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap & Javascript Utilities -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="js/api.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      // Elements
+      const spinnerLoader = document.getElementById("spinner-loader");
+      const statusOrgName = document.getElementById("status-org-name");
+      const statusTokenNumber = document.getElementById("status-token-number");
+      const statusBadgeContainer = document.getElementById("status-badge-container");
+      
+      const liveAlertBox = document.getElementById("live-alert-box");
+      const liveAlertText = document.getElementById("live-alert-text");
+      
+      const detailName = document.getElementById("detail-name");
+      const detailService = document.getElementById("detail-service");
+      const detailSource = document.getElementById("detail-source");
+      const detailDatetime = document.getElementById("detail-datetime");
+      const detailRemarks = document.getElementById("detail-remarks");
+      
+      const refreshCounter = document.getElementById("refresh-counter");
+      const btnManualRefresh = document.getElementById("btn-manual-refresh");
+      
+      let tokenNumber = null;
+      let countdown = 10;
+      let timerInterval = null;
+
+      /**
+       * Parse query parameter
+       */
+      function getQueryParam(param) {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get(param);
+      }
+
+      /**
+       * Initialize status page
+       */
+      async function init() {
+        tokenNumber = getQueryParam("token");
+        if (!tokenNumber) {
+          showErrorState("No token specified. Please scan a valid QR code.");
+          return;
+        }
+
+        statusTokenNumber.textContent = tokenNumber;
+        
+        // Fetch org settings if available
+        if (SmartTokenAPI.isConfigured()) {
+          const sRes = await SmartTokenAPI.getSettings();
+          if (sRes.success && sRes.settings) {
+            statusOrgName.textContent = sRes.settings["Organization Name"] || "Smart Token System";
+          }
+        }
+
+        await fetchTokenDetails();
+        setupRefreshTimer();
+
+        btnManualRefresh.addEventListener("click", async () => {
+          spinnerLoader.classList.add("show");
+          await fetchTokenDetails();
+          spinnerLoader.classList.remove("show");
+          countdown = 10; // reset
+        });
+      }
+
+      /**
+       * Query DB and render status
+       */
+      async function fetchTokenDetails() {
+        const response = await SmartTokenAPI.getTokenDetails(tokenNumber);
+        
+        if (response.success && response.token) {
+          const t = response.token;
+          
+          detailName.textContent = t.customerName || "Walk-In Customer";
+          detailService.textContent = t.serviceType || "General Service";
+          detailSource.textContent = `${t.source} Registration`;
+          detailDatetime.textContent = `${t.date} @ ${t.time}`;
+          detailRemarks.textContent = t.remarks || "-";
+          detailRemarks.title = t.remarks || "-";
+          
+          updateStatusBadge(t.status, t.estimatedWaitingTimeMinutes);
+        } else {
+          showErrorState(response.error || "Token details not found.");
+        }
+      }
+
+      /**
+       * Render the custom status badge and alerts
+       */
+      function updateStatusBadge(status, waitTime) {
+        statusBadgeContainer.innerHTML = "";
+        liveAlertBox.classList.add("d-none");
+        
+        let badgeHTML = "";
+        
+        if (status === 'Waiting') {
+          badgeHTML = `<span class="status-badge-large bg-warning text-white pulse-glow"><i class="fa-solid fa-clock"></i> In Queue (Waiting)</span>`;
+          liveAlertText.textContent = `You are currently in the queue. Estimated wait time: ${waitTime} minutes.`;
+          liveAlertBox.className = "alert alert-warning border-0 p-3 mb-4 rounded-3 d-flex align-items-center gap-2";
+          liveAlertBox.classList.remove("d-none");
+        } 
+        else if (status === 'Serving') {
+          badgeHTML = `<span class="status-badge-large bg-success text-white pulse-glow"><i class="fa-solid fa-bell"></i> Now Serving!</span>`;
+          liveAlertText.textContent = `Your token is being called! Please proceed to Counter 1 immediately.`;
+          liveAlertBox.className = "alert alert-success border-0 p-3 mb-4 rounded-3 d-flex align-items-center gap-2";
+          liveAlertBox.classList.remove("d-none");
+        } 
+        else if (status === 'Completed') {
+          badgeHTML = `<span class="status-badge-large bg-secondary text-white"><i class="fa-solid fa-check-double"></i> Completed</span>`;
+          liveAlertText.textContent = `This token has been marked as Completed. Thank you!`;
+          liveAlertBox.className = "alert alert-secondary border-0 p-3 mb-4 rounded-3 d-flex align-items-center gap-2";
+          liveAlertBox.classList.remove("d-none");
+        } 
+        else if (status === 'Skipped') {
+          badgeHTML = `<span class="status-badge-large bg-danger text-white"><i class="fa-solid fa-triangle-exclamation"></i> Skipped</span>`;
+          liveAlertText.textContent = `You were called but did not show up. Your token has been marked as Skipped.`;
+          liveAlertBox.className = "alert alert-danger border-0 p-3 mb-4 rounded-3 d-flex align-items-center gap-2";
+          liveAlertBox.classList.remove("d-none");
+        }
+
+        statusBadgeContainer.innerHTML = badgeHTML;
+      }
+
+      /**
+       * Render error card if token not found
+       */
+      function showErrorState(msg) {
+        statusBadgeContainer.innerHTML = `<span class="status-badge-large bg-danger text-white"><i class="fa-solid fa-circle-xmark"></i> Error</span>`;
+        liveAlertText.textContent = msg;
+        liveAlertBox.className = "alert alert-danger border-0 p-3 mb-4 rounded-3 d-flex align-items-center gap-2";
+        liveAlertBox.classList.remove("d-none");
+        
+        detailName.textContent = "N/A";
+        detailService.textContent = "N/A";
+        detailSource.textContent = "N/A";
+        detailDatetime.textContent = "N/A";
+        detailRemarks.textContent = "N/A";
+        
+        if (timerInterval) clearInterval(timerInterval);
+      }
+
+      /**
+       * Setup 10-second polling refresh countdown
+       */
+      function setupRefreshTimer() {
+        if (timerInterval) clearInterval(timerInterval);
+        
+        timerInterval = setInterval(async () => {
+          countdown--;
+          refreshCounter.textContent = countdown;
+          
+          if (countdown <= 0) {
+            countdown = 10;
+            refreshCounter.textContent = "Updating...";
+            await fetchTokenDetails();
+            refreshCounter.textContent = "10";
+          }
+        }, 1000);
+      }
+
+      init();
+    });
+  </script>
+</body>
+</html>

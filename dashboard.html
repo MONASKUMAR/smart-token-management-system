@@ -358,12 +358,21 @@
       <hr style="border-top: 1px dashed #000; margin: 10px 0;">
       <p style="font-size: 0.8rem; margin: 5px 0;" id="print-customer-name">Name: Walk-In Customer</p>
       <p style="font-size: 0.8rem; margin: 5px 0;" id="print-date-time">Date: -- | Time: --</p>
+      <hr style="border-top: 1px dashed #000; margin: 10px 0;">
+      <div id="print-qrcode-wrapper" style="margin: 15px auto; text-align: center;">
+        <div id="print-qrcode" style="display: inline-block; padding: 5px; background: #fff; border: 1px solid #ddd;"></div>
+        <p style="font-size: 0.7rem; margin: 5px 0 0 0; color: #555;">Scan to track live status</p>
+      </div>
       <p style="font-size: 0.75rem; margin: 15px 0 0 0; font-style: italic;">Please wait for your number to be called.</p>
     </div>
   </div>
 
+  <!-- Hidden temp QR Code Container -->
+  <div id="dashboard-qr-temp" style="position: absolute; left: -9999px; top: -9999px; width: 128px; height: 128px; overflow: hidden; background: #fff;"></div>
+
   <!-- Bootstrap & Javascript Utilities -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="js/api.js"></script>
   <script src="js/dashboard.js"></script>
 </body>

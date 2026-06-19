@@ -5,175 +5,754 @@
  * - ESP32 Development Board
  * - Walk-in Push-Button connected between GPIO 4 and GND
  * - LED Indicator connected to GPIO 2 (onboard LED)
+ * - Secondary Serial Port (Serial2 on Pins RX2=16, TX2=17) for Wired Thermal Printer
+ * 
+ * Features:
+ * - Captive Portal WiFi configuration with scan list & premium dark theme UI
+ * - Redirection to the GitHub Pages Dashboard on success
+ * - Wireless OTA code uploads via ArduinoOTA
+ * - Direct HTTPS integration with Supabase database
+ * - Bluetooth Classic SPP & Wired ESC/POS Thermal Printer support
+ * - Time Synchronization via NTP (UTC+5:30) for ticket printing
  */
 
 #include <WiFi.h>
+#include <DNSServer.h>
+#include <WebServer.h>
+#include <Preferences.h>
 #include <HTTPClient.h>
+#include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
+#include <ArduinoOTA.h>
+#include <BluetoothSerial.h>
+#include <time.h>
 
-// Wi-Fi Credentials
-const char* ssid = "YOUR_WIFI_SSID";
-const char* password = "YOUR_WIFI_PASSWORD";
-
-// Google Apps Script Web App URL (MUST end in /exec)
-const char* googleWebAppUrl = "https://script.google.com/macros/s/AKfycbxIDzQF_XxhYujTWFyAy9bJQbgpEllYkcfMBr-B0KDe3Lmn3jKImPMLWIglLBDYr-8/exec";
+// Supabase Configuration
+const char* SUPABASE_URL = "https://swqgfhtyfudkwvyuulzz.supabase.co";
+const char* SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN3cWdmaHR5ZnVka3d2eXV1bHp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2MDE4ODIsImV4cCI6MjA5NzE3Nzg4Mn0.qbjAR4I8NfCFusutfws4I4oZJsbCx4TGeaYtfSyA1fc";
+const char* DASHBOARD_REDIRECT_URL = "https://monaskumar.github.io/smart-token-management-system/";
 
 // Hardware Pins
 const int BUTTON_PIN = 4; // Push button pin (active LOW)
 const int LED_PIN = 2;    // Status LED pin
 
-// Debounce state
+// Web and DNS Servers
+WebServer server(80);
+DNSServer dnsServer;
+
+// Bluetooth Serial for printer connection
+BluetoothSerial SerialBT;
+
+// WiFi settings storage
+Preferences preferences;
+String ssidListHTML = "";
+
+// State variables
+bool portalActive = false;
 unsigned long lastDebounceTime = 0;
-const unsigned long debounceDelay = 300; 
+const unsigned long debounceDelay = 400; // Debounce delay in ms
+
+unsigned long lastScanCheckTime = 0;
+const unsigned long scanCheckInterval = 7000; // Poll settings for scan requests every 7 seconds
+
+// Global printer configurations (synchronized with Supabase)
+String printerConnectionMode = "wire";
+String printerDeviceAddress = "";
+String printerPaperWidth = "58mm";
+String printerHeader = "Welcome to our Clinic";
+
+// Function Declarations
+void blinkLED(int count, int delayMs);
+void startCaptivePortal();
+void handleRootPortal();
+void handleSaveWiFi();
+void setupOTA();
+void generateSupabaseToken();
+void checkForScanRequest();
+void scanBluetoothDevices();
+void updateSupabaseSetting(String key, String value);
+void fetchPrinterSettings();
+void printTicket(int tokenNum, String customerName, String serviceType, int waitTime);
+String getLocalDateTime();
 
 void setup() {
   Serial.begin(115200);
-  
+  delay(100);
+
   pinMode(BUTTON_PIN, INPUT_PULLUP);
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, LOW);
 
-  // Connect to Wi-Fi
-  connectToWiFi();
+  // Initialize Preferences
+  preferences.begin("wifi", false);
+
+  // Check if button is held down on boot to force configuration portal
+  if (digitalRead(BUTTON_PIN) == LOW) {
+    Serial.println("\n[Setup] Button held on boot! Clearing WiFi credentials...");
+    preferences.clear();
+    blinkLED(10, 100); // Fast blink to acknowledge
+  }
+
+  String storedSSID = preferences.getString("ssid", "");
+  String storedPASS = preferences.getString("pass", "");
+
+  if (storedSSID == "") {
+    Serial.println("\n[Setup] No WiFi credentials stored. Launching setup portal...");
+    startCaptivePortal();
+  } else {
+    Serial.print("\n[Setup] Stored WiFi SSID found: ");
+    Serial.println(storedSSID);
+    
+    WiFi.begin(storedSSID.c_str(), storedPASS.c_str());
+    
+    Serial.print("[Setup] Connecting to WiFi");
+    int attempts = 0;
+    while (WiFi.status() != WL_CONNECTED && attempts < 30) { // 15 seconds timeout
+      delay(500);
+      Serial.print(".");
+      digitalWrite(LED_PIN, !digitalRead(LED_PIN)); // Toggle LED while connecting
+      attempts++;
+    }
+    
+    if (WiFi.status() == WL_CONNECTED) {
+      digitalWrite(LED_PIN, HIGH); // Solid LED on connection success
+      Serial.println("\n[WiFi] Connected successfully!");
+      Serial.print("[WiFi] IP Address: ");
+      Serial.println(WiFi.localIP());
+      
+      // Start NTP Time Synchronization (India standard UTC+5:30)
+      configTime(19800, 0, "pool.ntp.org");
+      Serial.println("[Time] NTP Time sync configured.");
+
+      // Initialize Bluetooth for printer connection & search
+      SerialBT.begin("Smart-Token-Dispenser");
+      Serial.println("[Bluetooth] Bluetooth Classic SPP initialized.");
+
+      // Fetch initial printer configurations
+      fetchPrinterSettings();
+
+      // Start OTA Update Service
+      setupOTA();
+      
+      // Success flash sequence
+      blinkLED(3, 200);
+      digitalWrite(LED_PIN, HIGH); // Solid LED back on
+    } else {
+      Serial.println("\n[WiFi] Connection failed. Falling back to setup portal...");
+      digitalWrite(LED_PIN, LOW);
+      startCaptivePortal();
+    }
+  }
 }
 
 void loop() {
-  // Read button state (active LOW due to pullup)
-  int buttonState = digitalRead(BUTTON_PIN);
-
-  if (buttonState == LOW) {
-    if ((millis() - lastDebounceTime) > debounceDelay) {
-      lastDebounceTime = millis();
-      Serial.println("\n[Master] Button pressed. Dispatching Manual Ticket generation...");
-      
-      // Visual feedback of pressing
-      digitalWrite(LED_PIN, HIGH);
-      
-      // Generate Token via HTTP call
-      triggerGenerateTokenAPI();
-      
-      digitalWrite(LED_PIN, LOW);
-    }
-  }
-}
-
-/**
- * Handle Wi-Fi Connection
- */
-void connectToWiFi() {
-  Serial.print("[WiFi] Connecting to SSID: ");
-  Serial.println(ssid);
-  
-  WiFi.begin(ssid, password);
-  
-  int attempts = 0;
-  while (WiFi.status() != WL_CONNECTED && attempts < 20) {
-    delay(500);
-    Serial.print(".");
-    attempts++;
-  }
-  
-  if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("\n[WiFi] Connected successfully!");
-    Serial.print("[WiFi] IP Address: ");
-    Serial.println(WiFi.localIP());
-    // Blinker indicating connection success
-    for (int i = 0; i < 3; i++) {
-      digitalWrite(LED_PIN, HIGH);
-      delay(150);
-      digitalWrite(LED_PIN, LOW);
-      delay(150);
-    }
+  if (portalActive) {
+    dnsServer.processNextRequest();
+    server.handleClient();
   } else {
-    Serial.println("\n[WiFi] Connection failed. Check credentials.");
+    ArduinoOTA.handle();
+    
+    // Poll Supabase settings periodically to check if dashboard requested a Bluetooth Scan
+    if (WiFi.status() == WL_CONNECTED) {
+      if (millis() - lastScanCheckTime > scanCheckInterval) {
+        lastScanCheckTime = millis();
+        checkForScanRequest();
+      }
+    }
+
+    // Read button state (active LOW)
+    int buttonState = digitalRead(BUTTON_PIN);
+    
+    if (buttonState == LOW) {
+      if ((millis() - lastDebounceTime) > debounceDelay) {
+        lastDebounceTime = millis();
+        Serial.println("\n[Master] Button pressed. Disbursing new manual ticket...");
+        
+        digitalWrite(LED_PIN, LOW); // Turn off LED during API call to show activity
+        generateSupabaseToken();
+        digitalWrite(LED_PIN, HIGH); // Turn LED back on when complete
+      }
+    }
   }
 }
 
 /**
- * Perform POST Request to Google Apps Script Web App
+ * Perform a clean LED blink sequence
  */
-void triggerGenerateTokenAPI() {
-  if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("[Error] WiFi disconnected. Attempting reconnect...");
-    connectToWiFi();
-    if (WiFi.status() != WL_CONNECTED) return;
+void blinkLED(int count, int delayMs) {
+  for (int i = 0; i < count; i++) {
+    digitalWrite(LED_PIN, HIGH);
+    delay(delayMs);
+    digitalWrite(LED_PIN, LOW);
+    delay(delayMs);
   }
+}
 
+/**
+ * Configure and Start Captive Setup Portal
+ */
+void startCaptivePortal() {
+  portalActive = true;
+  WiFi.mode(WIFI_AP_STA);
+  
+  // Scan for local WiFi networks
+  Serial.println("[Portal] Scanning networks...");
+  int n = WiFi.scanNetworks();
+  Serial.print("[Portal] Networks found: ");
+  Serial.println(n);
+  
+  ssidListHTML = "";
+  for (int i = 0; i < n; ++i) {
+    String encryptionType = (WiFi.encryptionType(i) == WIFI_AUTH_OPEN) ? "Open" : "Secured";
+    ssidListHTML += "<option value=\"" + WiFi.SSID(i) + "\">" + WiFi.SSID(i) + " (" + encryptionType + ", Sig: " + String(WiFi.RSSI(i)) + "dBm)</option>";
+  }
+  
+  // Host an open Access Point
+  WiFi.softAP("Smart-Token-Dispenser");
+  IPAddress apIP(192, 168, 4, 1);
+  WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
+  
+  Serial.print("[Portal] Access Point Started. SSID: Smart-Token-Dispenser, IP: ");
+  Serial.println(WiFi.softAPIP());
+  
+  // Route DNS requests to local AP IP
+  dnsServer.start(53, "*", apIP);
+  
+  // Web Server Routes
+  server.on("/", HTTP_GET, handleRootPortal);
+  server.on("/save", HTTP_POST, handleSaveWiFi);
+  server.onNotFound([]() {
+    // Captive Portal redirect
+    server.sendHeader("Location", "http://192.168.4.1/", true);
+    server.send(302, "text/plain", "");
+  });
+  
+  server.begin();
+  Serial.println("[Portal] Web Server listening on port 80.");
+}
+
+/**
+ * Serve Portal Configuration Page
+ */
+void handleRootPortal() {
+  String html = "<!DOCTYPE html><html><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">";
+  html += "<title>Dispenser WiFi Setup</title><style>";
+  html += "body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #1e1e2f 0%, #11111d 100%); color: #e0e0e0; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }";
+  html += ".card { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; padding: 30px; width: 100%; max-width: 400px; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37); text-align: center; }";
+  html += "h2 { margin-top: 0; font-weight: 600; color: #ffffff; letter-spacing: 0.5px; }";
+  html += "p { color: #a0a0ab; font-size: 0.9rem; margin-bottom: 25px; }";
+  html += ".form-group { margin-bottom: 20px; text-align: left; }";
+  html += "label { display: block; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; color: #0d6efd; font-weight: 600; }";
+  html += "select, input[type='password'] { width: 100%; padding: 12px; background: rgba(0, 0, 0, 0.2); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: #fff; font-size: 0.95rem; box-sizing: border-box; outline: none; }";
+  html += "select option { background: #11111d; color: #fff; }";
+  html += ".btn { width: 100%; padding: 14px; background: linear-gradient(90deg, #0d6efd 0%, #0b5ed7 100%); border: none; border-radius: 8px; color: white; font-weight: 600; font-size: 1rem; cursor: pointer; box-shadow: 0 4px 15px rgba(13, 110, 253, 0.3); }";
+  html += ".btn:active { transform: scale(0.98); }";
+  html += ".footer { margin-top: 25px; font-size: 0.75rem; color: #6c757d; }";
+  html += "</style></head><body><div class='card'>";
+  html += "<h2>WiFi Configuration</h2>";
+  html += "<p>Connect your Token Dispenser to your local WiFi network.</p>";
+  html += "<form method='POST' action='/save'>";
+  html += "<div class='form-group'>";
+  html += "<label for='ssid'>Select WiFi Network</label>";
+  html += "<select id='ssid' name='ssid'>";
+  html += ssidListHTML;
+  html += "</select></div>";
+  html += "<div class='form-group'>";
+  html += "<label for='password'>Password</label>";
+  html += "<input type='password' id='password' name='password' placeholder='Enter WiFi Password'>";
+  html += "</div>";
+  html += "<button type='submit' class='btn'>Connect Dispenser</button>";
+  html += "</form>";
+  html += "<div class='footer'>Smart Token Management System</div>";
+  html += "</div></body></html>";
+  
+  server.send(200, "text/html", html);
+}
+
+/**
+ * Handle Save WiFi settings request
+ */
+void handleSaveWiFi() {
+  String ssid = server.arg("ssid");
+  String pass = server.arg("password");
+  
+  if (ssid != "") {
+    preferences.putString("ssid", ssid);
+    preferences.putString("pass", pass);
+    
+    String html = "<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width, initial-scale=1'><meta http-equiv='refresh' content='5;url=" + String(DASHBOARD_REDIRECT_URL) + "'>";
+    html += "<title>Config Saved</title><style>";
+    html += "body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: linear-gradient(135deg, #1e1e2f 0%, #11111d 100%); color: #e0e0e0; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; text-align: center; }";
+    html += ".card { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; padding: 40px 30px; width: 100%; max-width: 400px; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37); }";
+    html += "h2 { margin-top: 0; color: #2ec4b6; }";
+    html += "p { color: #a0a0ab; font-size: 0.95rem; line-height: 1.6; }";
+    html += ".spinner { border: 4px solid rgba(255,255,255,0.1); width: 40px; height: 40px; border-radius: 50%; border-left-color: #2ec4b6; animation: spin 1s linear infinite; margin: 20px auto; }";
+    html += "@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }";
+    html += "</style></head><body><div class='card'>";
+    html += "<h2>Configuration Saved!</h2>";
+    html += "<p>The dispenser is now connecting to your WiFi network. You will be redirected to the dashboard in 5 seconds...</p>";
+    html += "<div class='spinner'></div>";
+    html += "<p style='font-size: 0.8rem; color: #6c757d;'>If you are not redirected automatically, click <a href='" + String(DASHBOARD_REDIRECT_URL) + "' style='color: #2ec4b6;'>here</a>.</p>";
+    html += "</div></body></html>";
+    
+    server.send(200, "text/html", html);
+    delay(1000);
+    
+    Serial.println("[Portal] Connection credentials saved. Rebooting...");
+    ESP.restart();
+  } else {
+    server.send(400, "text/plain", "Error: SSID must not be empty.");
+  }
+}
+
+/**
+ * Configure OTA Update Service
+ */
+void setupOTA() {
+  ArduinoOTA.setHostname("SmartTokenDispenser");
+  
+  ArduinoOTA.onStart([]() {
+    String type = (ArduinoOTA.getCommand() == U_FLASH) ? "sketch" : "filesystem";
+    Serial.println("[OTA] Start updating " + type);
+    // Turn off LED during updates
+    digitalWrite(LED_PIN, LOW);
+  });
+  
+  ArduinoOTA.onEnd([]() {
+    Serial.println("\n[OTA] Update Completed!");
+    blinkLED(5, 100);
+  });
+  
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+    Serial.printf("[OTA] Progress: %u%%\r", (progress / (total / 100)));
+    digitalWrite(LED_PIN, !digitalRead(LED_PIN)); // Flash LED during write
+  });
+  
+  ArduinoOTA.onError([](ota_error_t error) {
+    Serial.printf("[OTA Error] Error[%u]: ", error);
+    if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
+    else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
+    else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
+    else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
+    else if (error == OTA_END_ERROR) Serial.println("End Failed");
+  });
+  
+  ArduinoOTA.begin();
+  Serial.println("[OTA] ArduinoOTA service initialized successfully.");
+}
+
+/**
+ * Poll settings database table to verify if the dashboard triggered a scan request
+ */
+void checkForScanRequest() {
+  WiFiClientSecure client;
+  client.setInsecure();
   HTTPClient http;
   
-  // Set up connection target
-  http.begin(googleWebAppUrl);
+  String url = String(SUPABASE_URL) + "/rest/v1/settings?key=eq.Scan%20Request";
+  http.begin(client, url);
+  http.addHeader("apikey", SUPABASE_KEY);
+  http.addHeader("Authorization", String("Bearer ") + SUPABASE_KEY);
   
-  // CRITICAL: Google Apps Script Web Apps redirect (302 Found) to Google User Content URLs.
-  // We must instruct HTTPClient to automatically follow redirects.
-  http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
-  
-  // Prepare JSON payload parameters
-  StaticJsonDocument<256> doc;
-  doc["action"] = "generateToken";
-  doc["name"] = "Walk-In Customer";
-  doc["phone"] = "-";
-  doc["email"] = "-";
-  doc["serviceType"] = "General Service";
-  doc["source"] = "Manual"; // Indicates hardware/desk dispatcher
-  doc["remarks"] = "Generated via Master ESP32 hardware button";
-  
-  String requestBody;
-  serializeJson(doc, requestBody);
-  
-  Serial.println("[HTTP] Sending POST request...");
-  
-  // Google Apps Script expects "text/plain" or similar content type to bypass CORS issues, 
-  // though from ESP32 standard headers are fine.
-  http.addHeader("Content-Type", "application/json");
-  
-  int httpResponseCode = http.POST(requestBody);
-  
-  if (httpResponseCode > 0) {
-    Serial.print("[HTTP] Response code: ");
-    Serial.println(httpResponseCode);
-    
-    String responseString = http.getString();
-    Serial.println("[HTTP] Response JSON:");
-    Serial.println(responseString);
-    
-    // Parse response JSON to fetch generated token number
-    StaticJsonDocument<512> responseDoc;
-    DeserializationError error = deserializeJson(responseDoc, responseString);
-    
-    if (!error) {
-      bool success = responseDoc["success"];
-      if (success) {
-        const char* tokenNum = responseDoc["tokenNumber"];
-        const char* timeGen = responseDoc["timeGenerated"];
-        int waitTime = responseDoc["estimatedWaitingTimeMinutes"];
-        
-        Serial.println("\n==================================");
-        Serial.print("  TICKET DISPENSED SUCCESS\n");
-        Serial.print("  Token Number: "); Serial.println(tokenNum);
-        Serial.print("  Time: "); Serial.println(timeGen);
-        Serial.print("  Est. Wait: "); Serial.print(waitTime); Serial.println(" Mins");
-        Serial.println("==================================");
-        
-        // Double blink success LED indicator
-        digitalWrite(LED_PIN, HIGH); delay(200);
-        digitalWrite(LED_PIN, LOW); delay(200);
-        digitalWrite(LED_PIN, HIGH); delay(200);
-        digitalWrite(LED_PIN, LOW);
-      } else {
-        const char* err = responseDoc["error"];
-        Serial.print("[API Error] Failed to generate token: ");
-        Serial.println(err);
+  int httpCode = http.GET();
+  if (httpCode == 200) {
+    String payload = http.getString();
+    JsonDocument doc;
+    DeserializationError err = deserializeJson(doc, payload);
+    if (!err && doc.size() > 0) {
+      String val = doc[0]["value"];
+      if (val == "true") {
+        scanBluetoothDevices();
       }
-    } else {
-      Serial.print("[JSON Error] Deserialization failed: ");
-      Serial.println(error.f_str());
+    }
+  }
+  http.end();
+}
+
+/**
+ * Scan for local Bluetooth Classic devices and upload them as JSON to settings
+ */
+void scanBluetoothDevices() {
+  Serial.println("[Bluetooth] Starting Classic Bluetooth discovery...");
+  
+  // Set scan request state to "scanning" to alert the dashboard
+  updateSupabaseSetting("Scan Request", "scanning");
+  
+  // Trigger discovery for 5 seconds
+  BTScanResults* pResults = SerialBT.discover(5000);
+  
+  JsonDocument doc;
+  JsonArray arr = doc.to<JsonArray>();
+  
+  if (pResults) {
+    int count = pResults->getCount();
+    Serial.printf("[Bluetooth] Discovery complete. Found %d devices.\n", count);
+    for (int i = 0; i < count; i++) {
+      BTAdvertisedDevice* device = pResults->getDevice(i);
+      JsonObject obj = arr.add<JsonObject>();
+      obj["name"] = device->getName().c_str();
+      obj["address"] = device->getAddress().toString().c_str();
     }
   } else {
-    Serial.print("[HTTP Error] POST request failed: ");
-    Serial.println(http.errorToString(httpResponseCode).c_str());
+    Serial.println("[Bluetooth] Scan failed or no devices discovered.");
   }
   
-  // Clean up
+  String jsonStr;
+  serializeJson(doc, jsonStr);
+  
+  // Upload discovery results
+  updateSupabaseSetting("Scanned Bluetooth Printers", jsonStr);
+  
+  // Reset scan request to "false" indicating completion
+  updateSupabaseSetting("Scan Request", "false");
+}
+
+/**
+ * Helper to update values in the Supabase settings table
+ */
+void updateSupabaseSetting(String key, String value) {
+  WiFiClientSecure client;
+  client.setInsecure();
+  HTTPClient http;
+  
+  String url = String(SUPABASE_URL) + "/rest/v1/settings?key=eq." + key;
+  url.replace(" ", "%20"); // Encode space characters
+  
+  http.begin(client, url);
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("apikey", SUPABASE_KEY);
+  http.addHeader("Authorization", String("Bearer ") + SUPABASE_KEY);
+  
+  JsonDocument patchDoc;
+  patchDoc["value"] = value;
+  
+  String patchBody;
+  serializeJson(patchDoc, patchBody);
+  
+  int httpCode = http.PATCH(patchBody);
+  if (httpCode != 204 && httpCode != 200) {
+    Serial.printf("[Supabase PATCH Error] Key %s, Code: %d\n", key.c_str(), httpCode);
+  }
   http.end();
+}
+
+/**
+ * Fetch thermal printer settings from Supabase
+ */
+void fetchPrinterSettings() {
+  WiFiClientSecure client;
+  client.setInsecure();
+  HTTPClient http;
+  
+  String url = String(SUPABASE_URL) + "/rest/v1/settings?key=eq.Thermal%20Printer%20Settings";
+  http.begin(client, url);
+  http.addHeader("apikey", SUPABASE_KEY);
+  http.addHeader("Authorization", String("Bearer ") + SUPABASE_KEY);
+  
+  int httpCode = http.GET();
+  if (httpCode == 200) {
+    String payload = http.getString();
+    JsonDocument doc;
+    DeserializationError err = deserializeJson(doc, payload);
+    if (!err && doc.size() > 0) {
+      String val = doc[0]["value"];
+      JsonDocument printerDoc;
+      DeserializationError parseErr = deserializeJson(printerDoc, val);
+      if (!parseErr) {
+        printerConnectionMode = printerDoc["connection"].as<String>();
+        printerDeviceAddress = printerDoc["device"].as<String>();
+        printerPaperWidth = printerDoc["paper"].as<String>();
+        printerHeader = printerDoc["header"].as<String>();
+        
+        if (printerConnectionMode == "null") printerConnectionMode = "wire";
+        if (printerDeviceAddress == "null") printerDeviceAddress = "";
+        if (printerPaperWidth == "null") printerPaperWidth = "58mm";
+        if (printerHeader == "null") printerHeader = "Welcome";
+        
+        Serial.printf("[Printer Settings] Loaded: connection=%s, address=%s, size=%s\n", 
+          printerConnectionMode.c_str(), printerDeviceAddress.c_str(), printerPaperWidth.c_str());
+      }
+    }
+  }
+  http.end();
+}
+
+/**
+ * Send raw ESC/POS commands to print the generated ticket
+ */
+void printTicket(int tokenNum, String customerName, String serviceType, int waitTime) {
+  // Sync the latest printer rules from the DB before printing
+  fetchPrinterSettings();
+
+  // Construct standard ESC/POS formatted ticket
+  String printData = "";
+  
+  printData += "\x1B\x40"; // ESC @ (Initialize printer)
+  printData += "\x1B\x61\x01"; // ESC a 1 (Align center)
+  
+  // Receipt Header Text
+  printData += "\x1D\x21\x00"; // GS ! 0 (Normal size)
+  printData += "\x1B\x45\x01"; // ESC E 1 (Bold ON)
+  printData += printerHeader + "\n";
+  printData += "WALK-IN TICKET\n";
+  printData += "\x1B\x45\x00"; // ESC E 0 (Bold OFF)
+  
+  // Layout separators (adjust length for 58mm vs 80mm wide rolls)
+  if (printerPaperWidth == "80mm") {
+    printData += "------------------------------------------------\n";
+  } else {
+    printData += "--------------------------------\n";
+  }
+  
+  printData += "Your Token Number is:\n\n";
+  printData += "\x1D\x21\x11"; // GS ! 0x11 (Double Width + Double Height Font)
+  printData += " " + String(tokenNum) + " \n\n";
+  
+  printData += "\x1D\x21\x00"; // Normal size
+  printData += "\x1B\x45\x01"; // Bold ON
+  printData += serviceType + "\n";
+  printData += "\x1B\x45\x00"; // Bold OFF
+  
+  if (printerPaperWidth == "80mm") {
+    printData += "------------------------------------------------\n";
+  } else {
+    printData += "--------------------------------\n";
+  }
+  
+  printData += "Customer: " + customerName + "\n";
+  printData += "Est. Wait Time: " + String(waitTime) + " mins\n";
+  printData += "Printed: " + getLocalDateTime() + "\n";
+  
+  if (printerPaperWidth == "80mm") {
+    printData += "------------------------------------------------\n\n\n\n\n";
+  } else {
+    printData += "--------------------------------\n\n\n\n\n";
+  }
+  
+  printData += "\x1D\x56\x42\x00"; // GS V 66 0 (Paper feed and partial cut)
+
+  if (printerConnectionMode == "bluetooth") {
+    if (printerDeviceAddress == "") {
+      Serial.println("[Printer] Error: No Bluetooth MAC address configured.");
+      return;
+    }
+    
+    // Check connection and re-establish if disconnected
+    if (!SerialBT.connected()) {
+      Serial.println("[Printer] Connecting to Bluetooth thermal printer...");
+      
+      uint8_t address[6];
+      int values[6];
+      if (sscanf(printerDeviceAddress.c_str(), "%x:%x:%x:%x:%x:%x", &values[0], &values[1], &values[2], &values[3], &values[4], &values[5]) == 6) {
+        for (int i = 0; i < 6; i++) {
+          address[i] = (uint8_t)values[i];
+        }
+        
+        // Attempt connection (timeout 8 seconds)
+        SerialBT.connect(address);
+      }
+    }
+    
+    if (SerialBT.connected()) {
+      Serial.println("[Printer] Printing ticket over Bluetooth...");
+      SerialBT.print(printData);
+    } else {
+      Serial.println("[Printer] Connection failed. Please ensure the printer is turned on.");
+    }
+  } else {
+    // Wired mode: output over hardware Serial2
+    // Pin 16 is RX, Pin 17 is TX. RX2/TX2 on ESP32 development board. Connect printer RX to ESP32 TX2 (Pin 17).
+    Serial2.begin(9600, SERIAL_8N1, 16, 17);
+    Serial.println("[Printer] Printing ticket over wired Serial2 (Pin 17)...");
+    Serial2.print(printData);
+  }
+}
+
+/**
+ * Fetch synced local date/time from NTP
+ */
+String getLocalDateTime() {
+  struct tm timeinfo;
+  if (getLocalTime(&timeinfo)) {
+    char timeStringBuff[30];
+    strftime(timeStringBuff, sizeof(timeStringBuff), "%d/%m/%Y %I:%M %p", &timeinfo);
+    return String(timeStringBuff);
+  }
+  return "--/--/---- --:--";
+}
+
+/**
+ * Connect to Supabase to fetch the last generated token,
+ * increment it (maintaining standard boundaries), insert the new walk-in record,
+ * and update the setting.
+ */
+void generateSupabaseToken() {
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("[Error] WiFi disconnected. Skipping token generation.");
+    blinkLED(3, 100);
+    return;
+  }
+  
+  WiFiClientSecure client;
+  client.setInsecure(); // Disable SSL chain verification for simplicity and robustness
+  HTTPClient http;
+  
+  int lastTokenNumber = 0;
+  int startingTokenNumber = 100; // Default fallback
+  int currentServingToken = 0;
+  int avgServiceTime = 10;
+  
+  // 1. Fetch Last Generated Token setting
+  String urlGetLast = String(SUPABASE_URL) + "/rest/v1/settings?key=eq.Last%20Generated%20Token";
+  http.begin(client, urlGetLast);
+  http.addHeader("apikey", SUPABASE_KEY);
+  http.addHeader("Authorization", String("Bearer ") + SUPABASE_KEY);
+  
+  int httpCode = http.GET();
+  if (httpCode == 200) {
+    String payload = http.getString();
+    JsonDocument doc;
+    DeserializationError err = deserializeJson(doc, payload);
+    if (!err && doc.size() > 0) {
+      String val = doc[0]["value"];
+      lastTokenNumber = val.toInt();
+    }
+  } else {
+    Serial.print("[Supabase GET Last Token Error] HTTP code: ");
+    Serial.println(httpCode);
+  }
+  http.end();
+  
+  // 2. Fetch Starting Token Number setting
+  String urlGetStart = String(SUPABASE_URL) + "/rest/v1/settings?key=eq.Starting%20Token%20Number";
+  http.begin(client, urlGetStart);
+  http.addHeader("apikey", SUPABASE_KEY);
+  http.addHeader("Authorization", String("Bearer ") + SUPABASE_KEY);
+  
+  httpCode = http.GET();
+  if (httpCode == 200) {
+    String payload = http.getString();
+    JsonDocument doc;
+    DeserializationError err = deserializeJson(doc, payload);
+    if (!err && doc.size() > 0) {
+      String val = doc[0]["value"];
+      startingTokenNumber = val.toInt();
+    }
+  } else {
+    Serial.print("[Supabase GET Starting Token Error] HTTP code: ");
+    Serial.println(httpCode);
+  }
+  http.end();
+
+  // 3. Fetch Current Serving Token and Average Service Delay for printing estimations
+  String urlGetServing = String(SUPABASE_URL) + "/rest/v1/settings?key=eq.Current%20Serving%20Token";
+  http.begin(client, urlGetServing);
+  http.addHeader("apikey", SUPABASE_KEY);
+  http.addHeader("Authorization", String("Bearer ") + SUPABASE_KEY);
+  
+  httpCode = http.GET();
+  if (httpCode == 200) {
+    String payload = http.getString();
+    JsonDocument doc;
+    DeserializationError err = deserializeJson(doc, payload);
+    if (!err && doc.size() > 0) {
+      String val = doc[0]["value"];
+      currentServingToken = val.toInt();
+    }
+  }
+  http.end();
+
+  String urlGetAvg = String(SUPABASE_URL) + "/rest/v1/settings?key=eq.Average%20Service%20Time";
+  http.begin(client, urlGetAvg);
+  http.addHeader("apikey", SUPABASE_KEY);
+  http.addHeader("Authorization", String("Bearer ") + SUPABASE_KEY);
+  
+  httpCode = http.GET();
+  if (httpCode == 200) {
+    String payload = http.getString();
+    JsonDocument doc;
+    DeserializationError err = deserializeJson(doc, payload);
+    if (!err && doc.size() > 0) {
+      String val = doc[0]["value"];
+      avgServiceTime = val.toInt();
+    }
+  }
+  http.end();
+  
+  // Compute new token number
+  int newTokenNumber = lastTokenNumber + 1;
+  if (newTokenNumber < startingTokenNumber) {
+    newTokenNumber = startingTokenNumber;
+  }
+  
+  Serial.print("[Supabase] Computed New Token: ");
+  Serial.println(newTokenNumber);
+  
+  // 4. Insert new token record
+  String urlPostToken = String(SUPABASE_URL) + "/rest/v1/tokens";
+  http.begin(client, urlPostToken);
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("apikey", SUPABASE_KEY);
+  http.addHeader("Authorization", String("Bearer ") + SUPABASE_KEY);
+  
+  JsonDocument postDoc;
+  postDoc["token_number"] = newTokenNumber;
+  postDoc["customer_name"] = "Walk-In";
+  postDoc["phone_number"] = "-";
+  postDoc["email"] = "-";
+  postDoc["service_type"] = "General Service";
+  postDoc["source"] = "Manual";
+  postDoc["status"] = "Waiting";
+  postDoc["remarks"] = "Generated via ESP32 Hardware Button";
+  
+  String requestBody;
+  serializeJson(postDoc, requestBody);
+  
+  httpCode = http.POST(requestBody);
+  bool insertSuccess = (httpCode == 201 || httpCode == 200);
+  if (!insertSuccess) {
+    Serial.print("[Supabase POST Token Error] HTTP code: ");
+    Serial.println(httpCode);
+    Serial.println(http.getString());
+  }
+  http.end();
+  
+  if (insertSuccess) {
+    // 5. Update settings table Last Generated Token key
+    String urlPatchLast = String(SUPABASE_URL) + "/rest/v1/settings?key=eq.Last%20Generated%20Token";
+    http.begin(client, urlPatchLast);
+    http.addHeader("Content-Type", "application/json");
+    http.addHeader("apikey", SUPABASE_KEY);
+    http.addHeader("Authorization", String("Bearer ") + SUPABASE_KEY);
+    
+    JsonDocument patchDoc;
+    patchDoc["value"] = String(newTokenNumber);
+    
+    String patchBody;
+    serializeJson(patchDoc, patchBody);
+    
+    httpCode = http.PATCH(patchBody);
+    if (httpCode == 204 || httpCode == 200) {
+      Serial.println("[Supabase] Token database update complete!");
+      
+      // Calculate wait estimation: wait count = (newTokenNumber - currentServingToken)
+      int waitCount = newTokenNumber - currentServingToken - 1;
+      if (waitCount < 0) waitCount = 0;
+      int estimatedWait = waitCount * avgServiceTime;
+      
+      // Print the physical ticket
+      printTicket(newTokenNumber, "Walk-In", "General Service", estimatedWait);
+      
+      // Success flash feedback
+      blinkLED(2, 200);
+    } else {
+      Serial.print("[Supabase PATCH Last Token Error] HTTP code: ");
+      Serial.println(httpCode);
+      Serial.println(http.getString());
+      blinkLED(3, 100);
+    }
+    http.end();
+  } else {
+    blinkLED(3, 100);
+  }
 }
