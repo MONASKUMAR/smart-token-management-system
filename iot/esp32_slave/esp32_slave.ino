@@ -15,7 +15,7 @@
  * Features:
  * - Captive Portal WiFi configuration with scan list & premium dark theme UI
  * - Redirection to the GitHub Pages Dashboard on success
- * - Wireless OTA code uploads via ArduinoOTA
+ * - Wireless OTA updates via GitHub HTTP Auto-Updates over the internet
  * - Direct HTTPS integration with Supabase database (calling next token, voice readout)
  */
 
@@ -26,9 +26,17 @@
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
-#include <ArduinoOTA.h>
 #include <HardwareSerial.h>
 #include <DFRobotDFPlayerMini.h>
+#include <HTTPUpdate.h>
+
+// Version and GitHub OTA configuration
+const int CURRENT_VERSION = 1;
+const char* VERSION_URL = "https://raw.githubusercontent.com/MONASKUMAR/smart-token-management-system/master/bin/slave_version.txt";
+const char* FIRMWARE_URL = "https://raw.githubusercontent.com/MONASKUMAR/smart-token-management-system/master/bin/esp32_slave.bin";
+
+unsigned long lastUpdateCheckTime = 0;
+const unsigned long updateCheckInterval = 300000; // Check for firmware updates every 5 minutes
 
 // Supabase Configuration
 const char* SUPABASE_URL = "https://swqgfhtyfudkwvyuulzz.supabase.co";
@@ -56,6 +64,17 @@ String ssidListHTML = "";
 bool portalActive = false;
 unsigned long lastDebounceTime = 0;
 const unsigned long debounceDelay = 400; // Debounce delay in ms
+
+// Function Declarations
+void blinkLED(int count, int delayMs);
+void startCaptivePortal();
+void handleRootPortal();
+void handleSaveWiFi();
+void checkForUpdates();
+void triggerNextTokenSupabase();
+void announceToken(const String& tokenStr);
+void waitPlayComplete();
+void playBuzzerChime();
 
 void setup() {
   Serial.begin(115200);
@@ -119,9 +138,9 @@ void setup() {
       Serial.print("[WiFi] IP Address: ");
       Serial.println(WiFi.localIP());
       
-      // Start OTA Update Service
-      setupOTA();
-      
+      // Check for GitHub updates right on boot
+      checkForUpdates();
+
       // Success flash sequence
       blinkLED(3, 200);
       digitalWrite(LED_PIN, HIGH); // Solid LED back on
@@ -138,7 +157,13 @@ void loop() {
     dnsServer.processNextRequest();
     server.handleClient();
   } else {
-    ArduinoOTA.handle();
+    // Check for GitHub updates periodically
+    if (WiFi.status() == WL_CONNECTED) {
+      if (millis() - lastUpdateCheckTime > updateCheckInterval) {
+        lastUpdateCheckTime = millis();
+        checkForUpdates();
+      }
+    }
     
     // Read Operator "Next" button
     int buttonState = digitalRead(NEXT_BUTTON_PIN);
@@ -286,38 +311,55 @@ void handleSaveWiFi() {
 }
 
 /**
- * Configure OTA Update Service
+ * Connect to GitHub over the internet to check for updates.
+ * Performs a download and update if a newer version is pushed to GitHub.
  */
-void setupOTA() {
-  ArduinoOTA.setHostname("SmartTokenOperator");
+void checkForUpdates() {
+  if (WiFi.status() != WL_CONNECTED) return;
   
-  ArduinoOTA.onStart([]() {
-    String type = (ArduinoOTA.getCommand() == U_FLASH) ? "sketch" : "filesystem";
-    Serial.println("[OTA] Start updating " + type);
-    digitalWrite(LED_PIN, LOW);
-  });
+  Serial.println("[Update] Checking for firmware updates on GitHub...");
   
-  ArduinoOTA.onEnd([]() {
-    Serial.println("\n[OTA] Update Completed!");
-    blinkLED(5, 100);
-  });
+  WiFiClientSecure client;
+  client.setInsecure(); // GitHub raw content requires HTTPS, we bypass verification for robustness
+  HTTPClient http;
   
-  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-    Serial.printf("[OTA] Progress: %u%%\r", (progress / (total / 100)));
-    digitalWrite(LED_PIN, !digitalRead(LED_PIN)); // Flash LED during write
-  });
-  
-  ArduinoOTA.onError([](ota_error_t error) {
-    Serial.printf("[OTA Error] Error[%u]: ", error);
-    if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
-    else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
-    else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
-    else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
-    else if (error == OTA_END_ERROR) Serial.println("End Failed");
-  });
-  
-  ArduinoOTA.begin();
-  Serial.println("[OTA] ArduinoOTA service initialized successfully.");
+  http.begin(client, VERSION_URL);
+  int httpCode = http.GET();
+  if (httpCode == 200) {
+    String payload = http.getString();
+    payload.trim();
+    int latestVersion = payload.toInt();
+    Serial.printf("[Update] Local version: %d, Latest remote version: %d\n", CURRENT_VERSION, latestVersion);
+    
+    if (latestVersion > CURRENT_VERSION) {
+      Serial.println("[Update] New version discovered on GitHub! Triggering HTTP update...");
+      
+      // Fast blink feedback to indicate update process has begun
+      blinkLED(5, 80);
+      
+      // Perform the firmware update
+      t_httpUpdate_return ret = httpUpdate.update(client, FIRMWARE_URL);
+      
+      switch (ret) {
+        case HTTP_UPDATE_FAILED:
+          Serial.printf("[Update Error] Failed (%d): %s\n", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
+          break;
+        case HTTP_UPDATE_NO_UPDATES:
+          Serial.println("[Update Error] No updates found during fetch.");
+          break;
+        case HTTP_UPDATE_OK:
+          Serial.println("[Update Success] Firmware written! Rebooting device...");
+          delay(1000);
+          ESP.restart();
+          break;
+      }
+    } else {
+      Serial.println("[Update] Firmware is already at the latest version.");
+    }
+  } else {
+    Serial.printf("[Update] Failed to fetch version file. HTTP Code: %d\n", httpCode);
+  }
+  http.end();
 }
 
 /**
