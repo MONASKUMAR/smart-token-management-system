@@ -57,6 +57,32 @@ document.addEventListener("DOMContentLoaded", () => {
     if (response.success && response.settings) {
       settingsProfile = response.settings;
       displayOrgName.textContent = settingsProfile["Organization Name"] || "Smart Token System";
+
+      // Dynamically apply Theme colors
+      if (settingsProfile["Theme Primary Color"]) {
+        const primaryColor = settingsProfile["Theme Primary Color"];
+        document.documentElement.style.setProperty('--primary-color', primaryColor);
+        document.querySelectorAll('.btn-primary, .serving-service-badge').forEach(el => {
+          el.style.borderColor = primaryColor;
+        });
+        if (servingCardGlow) {
+          servingCardGlow.style.borderColor = primaryColor;
+          servingCardGlow.style.boxShadow = `0 0 50px ${primaryColor}59`; // 35% opacity
+        }
+      }
+      if (settingsProfile["Theme Background Color"]) {
+        document.body.style.backgroundColor = settingsProfile["Theme Background Color"];
+      }
+
+      // Dynamically load Brand Logo
+      const displayLogoContainer = document.getElementById("display-logo-container");
+      if (displayLogoContainer) {
+        if (settingsProfile["Organization Logo"]) {
+          displayLogoContainer.innerHTML = `<img src="${settingsProfile["Organization Logo"]}" alt="Logo" style="max-height: 45px; width: auto; object-fit: contain;">`;
+        } else {
+          displayLogoContainer.innerHTML = `<i class="fa-solid fa-layer-group text-primary fs-2" id="display-logo-icon"></i>`;
+        }
+      }
     }
   }
 
@@ -167,26 +193,34 @@ document.addEventListener("DOMContentLoaded", () => {
     }, 4500);
 
     // 3. Text-to-Speech Vocal Calling
-    announceTokenVocally(token.tokenNumber);
+    announceTokenVocally(token.tokenNumber, token.serviceType);
   }
 
   /**
    * Vocal Text to Speech Synthesis
    */
-  function announceTokenVocally(tokenNumber) {
+  function announceTokenVocally(tokenNumber, serviceType = "General Service") {
     if ('speechSynthesis' in window) {
       // Format number digits clearly (e.g. "1 0 2" instead of "one hundred and two")
       const digitsSpoken = tokenNumber.toString().split('').join(' ');
-      const textToSpeak = `Token number, ${digitsSpoken}, please proceed to the counter.`;
+      
+      const template = settingsProfile["Voice Announcement Template"] || "Token number {token}, please proceed to counter.";
+      const textToSpeak = template.replace("{token}", digitsSpoken).replace("{service_type}", serviceType);
       
       const utterance = new SpeechSynthesisUtterance(textToSpeak);
       utterance.rate = 0.85; // slower speech for clarity
       utterance.pitch = 1.0;
       
-      // Select appropriate English voice if available
+      // Select configured voice language or default to standard English
       const voices = window.speechSynthesis.getVoices();
-      const englishVoice = voices.find(v => v.lang.includes("en-US") || v.lang.includes("en-GB"));
-      if (englishVoice) utterance.voice = englishVoice;
+      const configuredLang = settingsProfile["Voice Language"] || "en-US";
+      const matchedVoice = voices.find(v => v.lang.includes(configuredLang));
+      if (matchedVoice) {
+        utterance.voice = matchedVoice;
+      } else {
+        const englishVoice = voices.find(v => v.lang.includes("en-US") || v.lang.includes("en-GB"));
+        if (englishVoice) utterance.voice = englishVoice;
+      }
 
       window.speechSynthesis.speak(utterance);
     }

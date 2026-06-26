@@ -57,10 +57,10 @@
         <!-- Header -->
         <div class="text-center mb-4">
           <a href="index.html" class="text-decoration-none">
-            <div class="d-inline-flex align-items-center gap-2 mb-2">
-              <i class="fa-solid fa-layer-group text-primary fs-2"></i>
-              <span class="fw-bold fs-4 text-dark" id="reg-org-title">Smart Token System</span>
+            <div class="d-inline-flex align-items-center gap-2 mb-2" id="kiosk-logo-container">
+              <i class="fa-solid fa-layer-group text-primary fs-2" id="kiosk-logo-icon"></i>
             </div>
+            <span class="fw-bold fs-4 text-dark d-block" id="reg-org-title">Smart Token System</span>
           </a>
           <h4 class="fw-bold text-dark mt-2">Generate Queue Token</h4>
           <p class="text-muted">Fill out your details to join the virtual queue waitlist</p>
@@ -77,15 +77,15 @@
           
           <div class="row g-3">
             <!-- Full Name -->
-            <div class="col-md-6 col-12">
-              <label for="cust-name" class="form-label fw-semibold" style="font-size: 0.85rem;">Full Name <span class="text-danger">*</span></label>
+            <div class="col-md-6 col-12" id="cust-name-group">
+              <label for="cust-name" class="form-label fw-semibold" style="font-size: 0.85rem;">Full Name <span class="text-danger" id="name-required-star">*</span></label>
               <input type="text" class="form-control py-2" id="cust-name" placeholder="John Doe" required>
               <div class="invalid-feedback">Please enter your name.</div>
             </div>
 
             <!-- Mobile Number -->
-            <div class="col-md-6 col-12">
-              <label for="cust-phone" class="form-label fw-semibold" style="font-size: 0.85rem;">Mobile Number <span class="text-danger">*</span></label>
+            <div class="col-md-6 col-12" id="cust-phone-group">
+              <label for="cust-phone" class="form-label fw-semibold" style="font-size: 0.85rem;">Mobile Number <span class="text-danger" id="phone-required-star">*</span></label>
               <input type="tel" class="form-control py-2" id="cust-phone" placeholder="e.g. 9876543210" required pattern="[0-9]{10,15}">
               <div class="invalid-feedback">Please enter a valid mobile number (10-15 digits).</div>
             </div>
@@ -102,10 +102,6 @@
               <label for="cust-service" class="form-label fw-semibold" style="font-size: 0.85rem;">Required Service <span class="text-danger">*</span></label>
               <select class="form-select py-2" id="cust-service" required>
                 <option value="" disabled selected>Select service category...</option>
-                <option value="General Service">General Service</option>
-                <option value="Consultation">Consultation (Doctor/Consultant)</option>
-                <option value="Enquiry">Enquiry / Helpdesk</option>
-                <option value="Premium Service">Premium Service</option>
               </select>
               <div class="invalid-feedback">Please choose a service.</div>
             </div>

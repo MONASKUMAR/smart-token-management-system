@@ -224,6 +224,126 @@
           </form>
         </div>
 
+        <!-- Setting Card 5: Customizable UI & Theme Settings -->
+        <div class="card border-0 shadow-sm p-4 mb-4">
+          <h5 class="fw-bold text-dark mb-3"><i class="fa-solid fa-palette text-primary me-2"></i>Theme & Layout Customization</h5>
+          
+          <form id="settings-theme-form">
+            <div class="row g-3">
+              <!-- Accent Color -->
+              <div class="col-md-6 col-12">
+                <label for="settings-primary-color" class="form-label fw-semibold" style="font-size: 0.85rem;">Primary Accent Color</label>
+                <div class="input-group">
+                  <input type="color" class="form-control form-control-color" id="settings-primary-color" value="#6366F1" style="width: 50px; max-width: 50px; padding: 4px;">
+                  <input type="text" class="form-control" id="settings-primary-color-hex" value="#6366F1" placeholder="#6366F1">
+                </div>
+              </div>
+              
+              <!-- Background Color -->
+              <div class="col-md-6 col-12">
+                <label for="settings-bg-color" class="form-label fw-semibold" style="font-size: 0.85rem;">Lobby Background Color</label>
+                <div class="input-group">
+                  <input type="color" class="form-control form-control-color" id="settings-bg-color" value="#0F172A" style="width: 50px; max-width: 50px; padding: 4px;">
+                  <input type="text" class="form-control" id="settings-bg-color-hex" value="#0F172A" placeholder="#0F172A">
+                </div>
+              </div>
+
+              <!-- Organization Logo File Pick -->
+              <div class="col-12">
+                <label for="settings-logo-file" class="form-label fw-semibold" style="font-size: 0.85rem;">Upload Brand Logo (Photo)</label>
+                <input type="file" class="form-control" id="settings-logo-file" accept="image/*">
+                <div class="form-text">Choose an image (PNG/JPEG) to replace the generic system logo icon.</div>
+                <div class="mt-3">
+                  <img id="logo-preview" src="" alt="Brand Logo Preview" style="max-height: 80px; display: none;" class="rounded border p-1 bg-white shadow-sm">
+                  <button type="button" class="btn btn-outline-danger btn-sm mt-2 d-none" id="btn-remove-logo"><i class="fa-solid fa-trash me-1"></i> Remove Logo</button>
+                </div>
+              </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary mt-4" id="btn-save-theme-settings">
+              <i class="fa-solid fa-floppy-disk me-1"></i> Save Theme Settings
+            </button>
+          </form>
+        </div>
+
+        <!-- Setting Card 6: Speech & Announcement Settings -->
+        <div class="card border-0 shadow-sm p-4 mb-4">
+          <h5 class="fw-bold text-dark mb-3"><i class="fa-solid fa-volume-high text-primary me-2"></i>Vocal Announcement (TTS)</h5>
+          
+          <form id="settings-tts-form">
+            <div class="row g-3">
+              <!-- Announcement Template -->
+              <div class="col-12">
+                <label for="settings-voice-template" class="form-label fw-semibold" style="font-size: 0.85rem;">Lobby TV Speech Template</label>
+                <input type="text" class="form-control" id="settings-voice-template" value="Token number {token}, please proceed to counter.">
+                <div class="form-text">Use <code>{token}</code> for the called token number and <code>{service_type}</code> for the required service.</div>
+              </div>
+
+              <!-- Voice Language -->
+              <div class="col-md-6 col-12">
+                <label for="settings-voice-lang" class="form-label fw-semibold" style="font-size: 0.85rem;">Speech Language</label>
+                <select class="form-select" id="settings-voice-lang">
+                  <option value="en-US">English (United States)</option>
+                  <option value="en-GB">English (United Kingdom)</option>
+                  <option value="hi-IN">Hindi (India)</option>
+                  <option value="es-ES">Spanish (Spain)</option>
+                  <option value="fr-FR">French (France)</option>
+                </select>
+              </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary mt-4" id="btn-save-tts-settings">
+              <i class="fa-solid fa-floppy-disk me-1"></i> Save Speech Settings
+            </button>
+          </form>
+        </div>
+
+        <!-- Setting Card 7: Token Features & Custom Categories -->
+        <div class="card border-0 shadow-sm p-4 mb-4">
+          <h5 class="fw-bold text-dark mb-3"><i class="fa-solid fa-gears text-primary me-2"></i>Token Form & Queue Features</h5>
+          
+          <form id="settings-features-form">
+            <div class="row g-3">
+              <!-- Mandatory validation fields -->
+              <div class="col-md-6 col-12">
+                <div class="form-check form-switch mt-2">
+                  <input class="form-check-input" type="checkbox" role="switch" id="settings-require-name">
+                  <label class="form-check-label fw-semibold text-dark" for="settings-require-name" style="font-size: 0.85rem;">
+                    Require customer name on registration
+                  </label>
+                </div>
+              </div>
+              
+              <div class="col-md-6 col-12">
+                <div class="form-check form-switch mt-2">
+                  <input class="form-check-input" type="checkbox" role="switch" id="settings-require-phone">
+                  <label class="form-check-label fw-semibold text-dark" for="settings-require-phone" style="font-size: 0.85rem;">
+                    Require customer phone number on registration
+                  </label>
+                </div>
+              </div>
+
+              <!-- Service Category List Manager -->
+              <div class="col-12 border-top pt-3 mt-3">
+                <label class="form-label fw-semibold" style="font-size: 0.85rem;">Manage Available Queue Services</label>
+                <div class="input-group mb-3">
+                  <input type="text" class="form-control" id="new-service-input" placeholder="e.g. Account Enquiry, Ticket Sales">
+                  <button type="button" class="btn btn-outline-primary" id="btn-add-service">
+                    <i class="fa-solid fa-plus me-1"></i> Add Service
+                  </button>
+                </div>
+                <div class="list-group" id="services-list-container" style="max-height: 250px; overflow-y: auto;">
+                  <!-- Services will load here dynamically -->
+                </div>
+              </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary mt-4" id="btn-save-features-settings">
+              <i class="fa-solid fa-floppy-disk me-1"></i> Save Feature Rules
+            </button>
+          </form>
+        </div>
+
       </main>
     </div>
   </div>
@@ -281,6 +401,32 @@
       const passForm = document.getElementById("settings-pass-form");
       const newPassInput = document.getElementById("settings-new-pass");
       const confPassInput = document.getElementById("settings-conf-pass");
+
+      // Theme Elements
+      const themeForm = document.getElementById("settings-theme-form");
+      const primaryColorInput = document.getElementById("settings-primary-color");
+      const primaryColorHex = document.getElementById("settings-primary-color-hex");
+      const bgColorInput = document.getElementById("settings-bg-color");
+      const bgColorHex = document.getElementById("settings-bg-color-hex");
+      const logoFileInput = document.getElementById("settings-logo-file");
+      const logoPreview = document.getElementById("logo-preview");
+      const btnRemoveLogo = document.getElementById("btn-remove-logo");
+
+      // TTS Elements
+      const ttsForm = document.getElementById("settings-tts-form");
+      const voiceTemplateInput = document.getElementById("settings-voice-template");
+      const voiceLangSelect = document.getElementById("settings-voice-lang");
+
+      // Feature Elements
+      const featuresForm = document.getElementById("settings-features-form");
+      const requireNameSwitch = document.getElementById("settings-require-name");
+      const requirePhoneSwitch = document.getElementById("settings-require-phone");
+      const newServiceInput = document.getElementById("new-service-input");
+      const btnAddService = document.getElementById("btn-add-service");
+      const servicesListContainer = document.getElementById("services-list-container");
+
+      let activeServices = [];
+      let base64LogoData = "";
 
       // Toast Notification Elements
       const liveToast = document.getElementById("liveToast");
@@ -369,6 +515,49 @@
               console.error("Failed to parse Scanned Bluetooth Printers: ", e);
             }
           }
+
+          // Dynamic UI / Theme
+          if (s["Theme Primary Color"]) {
+            primaryColorInput.value = s["Theme Primary Color"];
+            primaryColorHex.value = s["Theme Primary Color"];
+          }
+          if (s["Theme Background Color"]) {
+            bgColorInput.value = s["Theme Background Color"];
+            bgColorHex.value = s["Theme Background Color"];
+          }
+          if (s["Organization Logo"]) {
+            base64LogoData = s["Organization Logo"];
+            logoPreview.src = base64LogoData;
+            logoPreview.style.display = "block";
+            btnRemoveLogo.classList.remove("d-none");
+            updateLogoImage(base64LogoData);
+          } else {
+            base64LogoData = "";
+            logoPreview.style.display = "none";
+            btnRemoveLogo.classList.add("d-none");
+          }
+
+          // Dynamic Vocal/TTS
+          voiceTemplateInput.value = s["Voice Announcement Template"] || "Token number {token}, please proceed to counter.";
+          if (s["Voice Language"]) {
+            voiceLangSelect.value = s["Voice Language"];
+          }
+
+          // Dynamic validation requirements
+          requireNameSwitch.checked = s["Require Customer Name"] === "true";
+          requirePhoneSwitch.checked = s["Require Customer Phone"] === "true";
+
+          // Dynamic services categories
+          if (s["Queue Service Categories"]) {
+            try {
+              activeServices = JSON.parse(s["Queue Service Categories"]);
+            } catch (err) {
+              activeServices = ["General Service", "Consultation", "Enquiry", "Premium Service"];
+            }
+          } else {
+            activeServices = ["General Service", "Consultation", "Enquiry", "Premium Service"];
+          }
+          renderServicesList();
         }
       }
 
@@ -604,9 +793,169 @@
           newPassInput.value = "";
           confPassInput.value = "";
         } else {
-          showToast("Failed to update password: " + response.error, false);
+          showToast("Failed to update credentials: " + response.error, false);
         }
       });
+
+        // --- New Customizable Settings Events ---
+
+        // Link color input pickers to text fields
+        primaryColorInput.addEventListener("input", () => {
+          primaryColorHex.value = primaryColorInput.value;
+        });
+        primaryColorHex.addEventListener("change", () => {
+          if (/^#[0-9A-F]{6}$/i.test(primaryColorHex.value.trim())) {
+            primaryColorInput.value = primaryColorHex.value.trim();
+          }
+        });
+
+        bgColorInput.addEventListener("input", () => {
+          bgColorHex.value = bgColorInput.value;
+        });
+        bgColorHex.addEventListener("change", () => {
+          if (/^#[0-9A-F]{6}$/i.test(bgColorHex.value.trim())) {
+            bgColorInput.value = bgColorHex.value.trim();
+          }
+        });
+
+        // Handle Logo Selection and conversion to Base64
+        logoFileInput.addEventListener("change", (e) => {
+          const file = e.target.files[0];
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+              base64LogoData = event.target.result;
+              logoPreview.src = base64LogoData;
+              logoPreview.style.display = "block";
+              btnRemoveLogo.classList.remove("d-none");
+            };
+            reader.readAsDataURL(file);
+          }
+        });
+
+        btnRemoveLogo.addEventListener("click", () => {
+          base64LogoData = "";
+          logoFileInput.value = "";
+          logoPreview.src = "";
+          logoPreview.style.display = "none";
+          btnRemoveLogo.classList.add("d-none");
+        });
+
+        // Render Dynamic Service Categories
+        function renderServicesList() {
+          servicesListContainer.innerHTML = "";
+          activeServices.forEach((service, index) => {
+            const item = document.createElement("div");
+            item.className = "list-group-item d-flex justify-content-between align-items-center bg-transparent text-white py-2 mb-1 rounded";
+            item.style.border = "1px solid rgba(0,0,0,0.15)";
+            item.innerHTML = `
+              <span class="text-dark">${service}</span>
+              <button type="button" class="btn btn-outline-danger btn-sm border-0 btn-delete-service" data-index="${index}">
+                <i class="fa-solid fa-trash-can"></i>
+              </button>
+            `;
+            servicesListContainer.appendChild(item);
+          });
+        }
+
+        btnAddService.addEventListener("click", () => {
+          const value = newServiceInput.value.trim();
+          if (value && !activeServices.includes(value)) {
+            activeServices.push(value);
+            newServiceInput.value = "";
+            renderServicesList();
+          }
+        });
+
+        servicesListContainer.addEventListener("click", (e) => {
+          const btn = e.target.closest(".btn-delete-service");
+          if (btn) {
+            const index = parseInt(btn.dataset.index);
+            activeServices.splice(index, 1);
+            renderServicesList();
+          }
+        });
+
+        // Render sidebar logo
+        function updateLogoImage(base64) {
+          const sidebarBrand = document.querySelector(".sidebar-brand");
+          if (base64) {
+            if (sidebarBrand) {
+              sidebarBrand.innerHTML = `<img src="${base64}" alt="Logo" style="max-height: 40px; width: auto; object-fit: contain; margin-right: 8px;"> <span class="fw-bold">Token System</span>`;
+            }
+          } else {
+            if (sidebarBrand) {
+              sidebarBrand.innerHTML = `<i class="fa-solid fa-layer-group fs-3"></i> <span class="fw-bold">Token System</span>`;
+            }
+          }
+        }
+
+        // Submit Theme configurations
+        themeForm.addEventListener("submit", async (e) => {
+          e.preventDefault();
+          if (!SmartTokenAPI.isConfigured()) {
+            showToast("API URL is not set.", false);
+            return;
+          }
+          spinnerLoader.classList.add("show");
+          const response = await SmartTokenAPI.updateSettings({
+            orgLogo: base64LogoData,
+            themePrimaryColor: primaryColorHex.value.trim(),
+            themeBackgroundColor: bgColorHex.value.trim()
+          });
+          spinnerLoader.classList.add("show");
+          if (response.success) {
+            showToast("Theme & logo configuration saved!", true);
+            updateLogoImage(base64LogoData);
+          } else {
+            showToast("Failed to save: " + response.error, false);
+          }
+        });
+
+        // Submit Speech configurations
+        ttsForm.addEventListener("submit", async (e) => {
+          e.preventDefault();
+          if (!SmartTokenAPI.isConfigured()) {
+            showToast("API URL is not set.", false);
+            return;
+          }
+          spinnerLoader.classList.add("show");
+          const response = await SmartTokenAPI.updateSettings({
+            voiceAnnouncementTemplate: voiceTemplateInput.value.trim(),
+            voiceLanguage: voiceLangSelect.value
+          });
+          spinnerLoader.classList.add("show");
+          if (response.success) {
+            showToast("Speech configurations saved!", true);
+          } else {
+            showToast("Failed to save: " + response.error, false);
+          }
+        });
+
+        // Submit Feature configurations
+        featuresForm.addEventListener("submit", async (e) => {
+          e.preventDefault();
+          if (!SmartTokenAPI.isConfigured()) {
+            showToast("API URL is not set.", false);
+            return;
+          }
+          if (activeServices.length === 0) {
+            showToast("Please add at least one service category.", false);
+            return;
+          }
+          spinnerLoader.classList.add("show");
+          const response = await SmartTokenAPI.updateSettings({
+            requireCustomerName: requireNameSwitch.checked.toString(),
+            requireCustomerPhone: requirePhoneSwitch.checked.toString(),
+            queueServiceCategories: JSON.stringify(activeServices)
+          });
+          spinnerLoader.classList.add("show");
+          if (response.success) {
+            showToast("Feature rules updated successfully!", true);
+          } else {
+            showToast("Failed to save: " + response.error, false);
+          }
+        });
 
       init();
     });

@@ -91,7 +91,20 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!SmartTokenAPI.isConfigured()) return;
     const response = await SmartTokenAPI.getSettings();
     if (response.success && response.settings) {
-      orgTitleDisplay.textContent = response.settings["Organization Name"] || "Smart Token System";
+      const s = response.settings;
+      orgTitleDisplay.textContent = s["Organization Name"] || "Smart Token System";
+
+      // Apply primary accent theme color
+      if (s["Theme Primary Color"]) {
+        const primaryColor = s["Theme Primary Color"];
+        document.documentElement.style.setProperty('--primary-color', primaryColor);
+      }
+
+      // Render custom organization brand logo image
+      const sidebarBrand = document.querySelector(".sidebar-brand");
+      if (sidebarBrand && s["Organization Logo"]) {
+        sidebarBrand.innerHTML = `<img src="${s["Organization Logo"]}" alt="Logo" style="max-height: 40px; width: auto; object-fit: contain; margin-right: 8px;"> <span class="fw-bold">Token System</span>`;
+      }
     }
   }
 

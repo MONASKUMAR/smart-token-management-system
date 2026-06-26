@@ -63,12 +63,67 @@ document.addEventListener("DOMContentLoaded", () => {
    * Load System Settings Configuration
    */
   async function loadSettings() {
-    if (!SmartTokenAPI.isConfigured()) return;
+    if (!SmartTokenAPI.isConfigured()) {
+      populateServicesDropdown(["General Service", "Consultation", "Enquiry", "Premium Service"]);
+      return;
+    }
     const response = await SmartTokenAPI.getSettings();
     if (response.success && response.settings) {
       settingsProfile = response.settings;
       regOrgTitle.textContent = settingsProfile["Organization Name"] || "Smart Token System";
+
+      // 1. Apply primary accent color
+      if (settingsProfile["Theme Primary Color"]) {
+        const primaryColor = settingsProfile["Theme Primary Color"];
+        document.documentElement.style.setProperty('--primary-color', primaryColor);
+      }
+
+      // 2. Organization Logo rendering
+      const logoContainer = document.getElementById("kiosk-logo-container");
+      if (logoContainer) {
+        if (settingsProfile["Organization Logo"]) {
+          logoContainer.innerHTML = `<img src="${settingsProfile["Organization Logo"]}" alt="Logo" style="max-height: 55px; width: auto; object-fit: contain;">`;
+        } else {
+          logoContainer.innerHTML = `<i class="fa-solid fa-layer-group text-primary fs-2" id="kiosk-logo-icon"></i>`;
+        }
+      }
+
+      // 3. Dynamic service categories population
+      let categories = [];
+      if (settingsProfile["Queue Service Categories"]) {
+        try {
+          categories = JSON.parse(settingsProfile["Queue Service Categories"]);
+        } catch (_) {
+          categories = ["General Service", "Consultation", "Enquiry", "Premium Service"];
+        }
+      } else {
+        categories = ["General Service", "Consultation", "Enquiry", "Premium Service"];
+      }
+      populateServicesDropdown(categories);
+
+      // 4. Form inputs validations rules
+      const reqName = settingsProfile["Require Customer Name"] === "true";
+      const reqPhone = settingsProfile["Require Customer Phone"] === "true";
+
+      const nameStar = document.getElementById("name-required-star");
+      const phoneStar = document.getElementById("phone-required-star");
+
+      if (nameStar) nameStar.style.display = reqName ? "inline" : "none";
+      custName.required = reqName;
+
+      if (phoneStar) phoneStar.style.display = reqPhone ? "inline" : "none";
+      custPhone.required = reqPhone;
     }
+  }
+
+  function populateServicesDropdown(categories) {
+    custService.innerHTML = '<option value="" disabled selected>Select service category...</option>';
+    categories.forEach(cat => {
+      const opt = document.createElement("option");
+      opt.value = cat;
+      opt.textContent = cat;
+      custService.appendChild(opt);
+    });
   }
 
   /**
@@ -88,8 +143,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
       spinnerLoader.classList.add("show");
 
-      const name = custName.value.trim();
-      const phone = custPhone.value.trim();
+      const name = custName.value.trim() || "Walk-In Customer";
+      const phone = custPhone.value.trim() || "-";
       const email = custEmail.value.trim() || "-";
       const service = custService.value;
       const dateVal = custDate.value;

@@ -224,16 +224,25 @@ const SmartTokenAPI = (function() {
 
   async function updateSettings(settingsData) {
     const db = await getClient();
+    const map = {
+      'startingToken': 'Starting Token Number',
+      'avgServiceTime': 'Average Service Time',
+      'orgName': 'Organization Name',
+      'enableBuzzer': 'Enable Buzzer',
+      'thermalPrinterSettings': 'Thermal Printer Settings',
+      'newPassword': 'Admin Password',
+      'orgLogo': 'Organization Logo',
+      'themePrimaryColor': 'Theme Primary Color',
+      'themeBackgroundColor': 'Theme Background Color',
+      'voiceAnnouncementTemplate': 'Voice Announcement Template',
+      'voiceLanguage': 'Voice Language',
+      'queueServiceCategories': 'Queue Service Categories',
+      'requireCustomerPhone': 'Require Customer Phone',
+      'requireCustomerName': 'Require Customer Name'
+    };
     for (const [key, value] of Object.entries(settingsData)) {
        if (value !== undefined && value !== null) {
-           let mapKey = key;
-           if (key === 'startingToken') mapKey = 'Starting Token Number';
-           else if (key === 'avgServiceTime') mapKey = 'Average Service Time';
-           else if (key === 'orgName') mapKey = 'Organization Name';
-           else if (key === 'enableBuzzer') mapKey = 'Enable Buzzer';
-           else if (key === 'thermalPrinterSettings') mapKey = 'Thermal Printer Settings';
-           else if (key === 'newPassword') mapKey = 'Admin Password';
-           
+           const mapKey = map[key] || key;
            await db.from('settings').upsert({ key: mapKey, value: value.toString() });
        }
     }

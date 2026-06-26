@@ -147,6 +147,43 @@ document.addEventListener("DOMContentLoaded", () => {
     if (response.success && response.settings) {
       settingsProfile = response.settings;
       orgTitleDisplay.textContent = settingsProfile["Organization Name"] || "Smart Token System";
+
+      // Apply primary accent theme color
+      if (settingsProfile["Theme Primary Color"]) {
+        const primaryColor = settingsProfile["Theme Primary Color"];
+        document.documentElement.style.setProperty('--primary-color', primaryColor);
+      }
+
+      // Render custom organization brand logo image
+      const sidebarBrand = document.querySelector(".sidebar-brand");
+      if (sidebarBrand && settingsProfile["Organization Logo"]) {
+        sidebarBrand.innerHTML = `<img src="${settingsProfile["Organization Logo"]}" alt="Logo" style="max-height: 40px; width: auto; object-fit: contain; margin-right: 8px;"> <span class="fw-bold">Token System</span>`;
+      }
+
+      // Populate dynamic service categories in Walk-in dropdown and list filter
+      if (settingsProfile["Queue Service Categories"]) {
+        try {
+          const categories = JSON.parse(settingsProfile["Queue Service Categories"]);
+          if (manualServiceType) {
+            manualServiceType.innerHTML = "";
+            categories.forEach(cat => {
+              const opt = document.createElement("option");
+              opt.value = cat;
+              opt.textContent = cat;
+              manualServiceType.appendChild(opt);
+            });
+          }
+          if (queueServiceFilter) {
+            queueServiceFilter.innerHTML = '<option value="">All Services</option>';
+            categories.forEach(cat => {
+              const opt = document.createElement("option");
+              opt.value = cat;
+              opt.textContent = cat;
+              queueServiceFilter.appendChild(opt);
+            });
+          }
+        } catch (_) {}
+      }
     }
   }
 
